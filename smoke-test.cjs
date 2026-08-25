@@ -50,6 +50,14 @@ async function main() {
   const health = await getJson('http://localhost:4399/api/health');
   check('GET /api/health', health.status === 'ok');
 
+  // Render-style deploy verification pings GET / — it must NOT be a 404.
+  const rootProbe = await getJson('http://localhost:4399/');
+  check(
+    'GET / root health probe',
+    rootProbe.status === 'ok' && /running/i.test(rootProbe.message ?? ''),
+    rootProbe.message,
+  );
+
   const routes = await getJson('http://localhost:4399/api/routes');
   check(
     'GET /api/routes returns 4 LPTRP routes',

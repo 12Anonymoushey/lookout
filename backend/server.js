@@ -25,11 +25,41 @@ const SWEEP_INTERVAL_MS = 45 * 1000;
 /** In-memory live fleet store: { [vehicleId]: record } */
 const activeDrivers = {};
 
+/**
+ * CORS configuration: "*" by default, or a comma-separated allow-list via the
+ * CORS_ORIGIN env var, e.g.
+ *   CORS_ORIGIN=https://look-out.pages.dev,http://localhost:5173
+ */
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '*')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const CORS_ORIGIN = ALLOWED_ORIGINS.includes('*') ? '*' : ALLOWED_ORIGINS;
+
 /* ------------------------------- REST layer ------------------------------ */
 
 const app = express();
-app.use(cors({ origin: '*' }));
+
+// Running behind Render/Cloudflare proxies -> honour X-Forwarded-* headers.
+app.set('trust proxy', 1);
+
+// CORS must be registered before any route handler.
+app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
+
+/**
+ * Root health probe. Render (and most uptime monitors) verify deploys by
+ * requesting GET / — without this route Express would answer 404.
+ */
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'Look Out! Backend is running',
+    service: 'look-out-backend',
+    endpoints: ['/', '/api/routes', '/api/drivers', '/api/health'],
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Full LPTRP catalogue: stops with coordinates + computed fare matrices.
 app.get('/api/routes', (_req, res) => {
@@ -47,6 +77,7 @@ app.get('/api/drivers', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
+    message: 'Look Out! Backend is running',
     service: 'look-out-backend',
     liveVehicles: Object.keys(activeDrivers).length,
     uptimeSec: Math.round(process.uptime()),
@@ -54,15 +85,20 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// JSON 404 for anything else (never leak an HTML error page).
 app.use((_req, res) => {
-  res.status(404).json({ success: false, error: 'Endpoint not found' });
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
+    hint: 'Try GET / or GET /api/routes',
+  });
 });
 
 /* ----------------------------- Socket.IO layer --------------------------- */
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: CORS_ORIGIN, methods: ['GET', 'POST'] },
   pingInterval: 20000,
   pingTimeout: 25000,
 });
@@ -146,6 +182,7 @@ setInterval(() => {
 httpServer.listen(PORT, () => {
   console.log('--------------------------------------------------');
   console.log('  Look Out! realtime server is running');
+  console.log(`  ROOT : http://localhost:${PORT}/  (health probe)`);
   console.log(`  REST : http://localhost:${PORT}/api/routes`);
   console.log(`  WS   : ws://localhost:${PORT}  (Socket.IO)`);
   console.log('--------------------------------------------------');

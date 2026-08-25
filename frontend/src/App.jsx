@@ -48,17 +48,37 @@ export default function App() {
     };
   }, []);
 
-  /* -------------------------- REST: route catalogue ----------------------- */
+  /* --------------- REST: backend health + route catalogue ----------------- */
   const loadRoutes = useCallback(async () => {
     setRoutesError('');
+
+    // Step 1 — prove the backend is awake via GET /api/health (a real endpoint,
+    // never a bare "/" guess). Render's free tier sleeps after ~15 min idle;
+    // the first request can take up to a minute while the service boots.
+    try {
+      const healthRes = await fetch(`${BACKEND_URL}/api/health`);
+      if (!healthRes.ok) throw new Error(`health check responded HTTP ${healthRes.status}`);
+      await healthRes.json();
+    } catch (err) {
+      setRoutesError(
+        `Cannot reach backend at ${BACKEND_URL} (${err.message}). If the service was idle, Render may need up to a minute to wake up — press Retry.`,
+      );
+      return;
+    }
+
+    // Step 2 — backend is awake: load the LPTRP catalogue.
     try {
       const res = await fetch(`${BACKEND_URL}/api/routes`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`/api/routes responded HTTP ${res.status}`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Unknown API error');
+      if (!data.success || !Array.isArray(data.routes)) {
+        throw new Error(data.error || 'Malformed response from /api/routes');
+      }
       setRoutes(data.routes);
     } catch (err) {
-      setRoutesError(`Cannot reach backend at ${BACKEND_URL} — ${err.message}`);
+      setRoutesError(
+        `Backend is online but /api/routes failed at ${BACKEND_URL} — ${err.message}`,
+      );
     }
   }, []);
 

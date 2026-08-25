@@ -94,11 +94,23 @@ Then open **two browser windows side by side**:
 
 ## Configuration
 
-Copy the example env files if you need non-defaults (defaults work out of the box):
+The frontend resolves its backend URL in this order:
+
+1. `VITE_BACKEND_URL` build-time env var — set it in the Cloudflare Pages
+   dashboard (Production **and** Preview environments), or in
+   `frontend/.env.local` for local development.
+2. Fallback: the deployed Render instance (`https://lookout-p8fw.onrender.com`),
+   so the pushed repo works out of the box in production.
+
+Trailing slashes are stripped automatically (`https://host/` behaves exactly
+like `https://host`) — a stray slash would otherwise produce `//api/routes`
+and a confusing HTTP 404.
+
+For fully-local development point it back at your machine:
 
 ```bash
-cp backend/.env.example backend/.env      # PORT=4000
-cp frontend/.env.example frontend/.env    # VITE_BACKEND_URL=http://localhost:4000
+cp backend/.env.example backend/.env            # optional: PORT=4000
+cp frontend/.env.example frontend/.env.local    # VITE_BACKEND_URL=http://localhost:4000
 ```
 
 ## Production Build
@@ -107,6 +119,34 @@ cp frontend/.env.example frontend/.env    # VITE_BACKEND_URL=http://localhost:40
 npm run build      # bundles frontend into frontend/dist
 npm run preview    # serve the production bundle locally
 ```
+
+## Deploying on Free Tiers
+
+### Backend — Render
+
+1. Push this repo to GitHub → Render **New → Web Service** → connect the repo.
+2. Settings:
+   - **Root Directory:** `backend`
+   - **Build Command:** `npm install` (or `npm run build` — a safe no-op echo)
+   - **Start Command:** `npm start`
+3. Render injects `PORT` automatically — no other environment vars required.
+4. Optional hardening once your Pages domain is live:
+   `CORS_ORIGIN=https://look-out.pages.dev,http://localhost:5173`
+
+> Free instances sleep after ~15 minutes of idle traffic; the next request then
+> takes up to ~60 s while the service boots. The frontend banner explains this —
+> press **Retry**, or attach any free uptime pinger to `GET /`.
+
+### Frontend — Cloudflare Pages
+
+1. **Workers & Pages → Create → Pages → Connect to Git** → pick the repo.
+2. Build settings: framework preset **Vite**, build command `npm run build`,
+   output directory `dist`.
+3. Environment variables (Production **and** Preview):
+   `VITE_BACKEND_URL = https://<your-render-app>.onrender.com`
+4. Save & deploy. Env-var changes require a redeploy to take effect.
+
+No Google Maps keys, no credit cards — OSM tiles + open-source only.
 
 ## Defense Tips & Troubleshooting
 
