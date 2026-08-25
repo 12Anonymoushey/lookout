@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
  *
  * Override the target server with VITE_BACKEND_URL — see .env.example.
  */
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://lookout-p8fw.onrender.com/';
 
 export const socket = io(BACKEND_URL, {
   autoConnect: true,
