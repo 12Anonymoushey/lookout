@@ -3,23 +3,26 @@ import { MapContainer, Polyline, TileLayer } from 'react-leaflet';
 import {
   AlertTriangle,
   Bus,
+  Check,
   ChevronDown,
-  Compass,
   Crosshair,
-  Gauge,
   Loader2,
-  MapPin,
   Play,
   Satellite,
   Send,
   Square,
   Timer,
+  UserRound,
+  Users,
   X,
 } from 'lucide-react';
 import { socket } from '../services/socket.js';
 import { bearingDeg, cardinal, haversineKm, pathLengthKm, pointAtDistance } from '../utils/geo.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import AppShell, { InfoRow, Section } from './AppShell.jsx';
+import PlateManager from './PlateManager.jsx';
+import DriverPokes from './DriverPokes.jsx';
 import PulseDot from './PulseDot.jsx';
-import StatCard from './StatCard.jsx';
 import VehicleMarker from './VehicleMarker.jsx';
 
 const ILOILO_CENTER = [10.7202, 122.5621];
@@ -31,13 +34,21 @@ const fmtDuration = (sec) =>
 
 /**
  * DRIVER VIEW
- * Mobile-friendly console broadcasting real GPS fixes every 3 s via
- * navigator.geolocation.watchPosition, plus a classroom-friendly
- * "Simulate GPS Movement" mode that drives a virtual jeepney along the
- * selected LPTRP route polyline.
+ * The console (plates, trip controls, GPS telemetry, passenger status) lives in
+ * the sidebar on desktop and in the burger drawer on phones, so the map keeps
+ * the whole stage. The two passenger-status buttons and the live POKE counter
+ * stay pinned to the bottom-right corner exactly as specified.
  */
-export default function DriverView({ routes, connected }) {
-  const [vehicleId, setVehicleId] = useState('');
+export default function DriverView({
+  routes,
+  connected,
+  drawerOpen,
+  onCloseDrawer,
+  collapsed,
+  onToggleCollapse,
+}) {
+  const { profile, plates, activePlate, setPlates, setActivePlate } = useAuth();
+
   const [routeId, setRouteId] = useState('');
   const [isLive, setIsLive] = useState(false);
   const [simEnabled, setSimEnabled] = useState(false);
@@ -49,6 +60,7 @@ export default function DriverView({ routes, connected }) {
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
   const [follow, setFollow] = useState(true);
+  const [full, setFull] = useState(false); // ← the "Full / Still Vacant" switch
 
   // Refs hold values needed inside interval/watch callbacks without stale closures.
   const watchIdRef = useRef(null);
@@ -58,6 +70,7 @@ export default function DriverView({ routes, connected }) {
   const metaRef = useRef(null); // { vehicleId, routeId }
   const simFlagRef = useRef(false);
   const isLiveRef = useRef(false);
+  const fullRef = useRef(false);
   const routesRef = useRef(routes);
   const routeIdRef = useRef(routeId);
   const miniMapRef = useRef(null);
@@ -69,6 +82,10 @@ export default function DriverView({ routes, connected }) {
   useEffect(() => {
     routeIdRef.current = routeId;
   }, [routeId]);
+
+  useEffect(() => {
+    fullRef.current = full;
+  }, [full]);
 
   // Pre-select the first route once the catalogue arrives.
   useEffect(() => {
@@ -102,8 +119,7 @@ export default function DriverView({ routes, connected }) {
         if ((!speedKmh || speedKmh < 0) && prev) {
           const dtSec = (pos.timestamp - prev.timestamp) / 1000;
           if (dtSec > 0.5) {
-            speedKmh =
-              (haversineKm(prev.lat, prev.lng, c.latitude, c.longitude) / dtSec) * 3600;
+            speedKmh = (haversineKm(prev.lat, prev.lng, c.latitude, c.longitude) / dtSec) * 3600;
           }
         }
 
@@ -152,6 +168,7 @@ export default function DriverView({ routes, connected }) {
       lng: fix.lng,
       speed: Math.round(fix.speed * 10) / 10,
       heading: Math.round(fix.heading),
+      full: fullRef.current,
     });
     setSentCount((n) => n + 1);
   }, []);
@@ -188,9 +205,9 @@ export default function DriverView({ routes, connected }) {
   }, [emitFix, pushFix]);
 
   const beginTrip = () => {
-    const vid = vehicleId.trim().toUpperCase();
+    const vid = activePlate.trim().toUpperCase();
     if (!vid) {
-      setError('Enter your Vehicle Body Number first (e.g. JEEP-102).');
+      setError('Add a plate number first — open "My plate numbers" in the panel.');
       return;
     }
     if (!routeIdRef.current) {
@@ -239,6 +256,14 @@ export default function DriverView({ routes, connected }) {
     }
   };
 
+  /** Full / Still Vacant — pushed immediately, then carried by every fix. */
+  const setAvailability = useCallback((nextFull) => {
+    setFull(nextFull);
+    fullRef.current = nextFull;
+    const meta = metaRef.current;
+    if (meta) socket.emit('setAvailability', { vehicleId: meta.vehicleId, full: nextFull });
+  }, []);
+
   // Trip timer (1 s cadence while broadcasting).
   useEffect(() => {
     if (!isLive) return undefined;
@@ -281,53 +306,47 @@ export default function DriverView({ routes, connected }) {
     denied: { icon: X, spin: false, text: 'GPS unavailable', cls: 'text-rose-300' },
   }[gpsStatus];
 
-  return (
-    <div className="grid h-full grid-cols-1 overflow-y-auto lg:grid-cols-[420px_minmax(0,1fr)] lg:overflow-hidden">
-      {/* ------------------------- control column ------------------------- */}
-      <aside className="flex flex-col gap-4 border-slate-800 p-4 lg:overflow-y-auto lg:border-r">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 shadow-lg shadow-cyan-500/20">
-              <Bus size={22} />
-            </div>
-            <div className="leading-tight">
-              <h2 className="text-lg font-bold">Driver Console</h2>
-              <p className="text-xs text-slate-400">Broadcast your PUV&rsquo;s live GPS</p>
-            </div>
-          </div>
+  /* -------------------------------- sidebar -------------------------------- */
+  const panel = (
+    <>
+      <Section icon={UserRound} title="My details" tint="cyan">
+        <InfoRow label="Name" value={profile?.fullName} />
+        <InfoRow label="Email" value={profile?.email} />
+        <InfoRow label="Mobile" value={profile?.phone || '—'} />
+        <InfoRow label="Account" value="driver" />
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <span className="text-[11px] text-slate-400">Trip</span>
           <span
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
               isLive
                 ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
                 : 'border-slate-700 bg-slate-800/60 text-slate-400'
             }`}
           >
             {isLive && <PulseDot color="emerald" />}
-            {isLive ? 'On Air' : 'Offline'}
+            {isLive ? 'On air' : 'Offline'}
           </span>
         </div>
+      </Section>
 
+      {/* PlateManager brings its own card + heading, so it is not wrapped in a Section. */}
+      <PlateManager
+        plates={plates}
+        activePlate={activePlate}
+        onSelect={setActivePlate}
+        onChange={setPlates}
+        disabled={isLive}
+      />
+
+      <Section icon={Bus} title="Trip & GPS" tint="emerald">
         {!connected && (
-          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-200">
             Backend not connected — start the realtime server on port 4000 first.
           </p>
         )}
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Vehicle Body No.
-          </span>
-          <input
-            value={vehicleId}
-            onChange={(e) => setVehicleId(e.target.value)}
-            disabled={isLive}
-            placeholder="JEEP-102"
-            className="w-full rounded-xl border border-slate-700 bg-slate-800/70 px-3.5 py-2.5 font-mono text-sm uppercase tracking-widest text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 disabled:opacity-50"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
             Route
           </span>
           <span className="relative block">
@@ -335,7 +354,7 @@ export default function DriverView({ routes, connected }) {
               value={routeId}
               onChange={(e) => setRouteId(e.target.value)}
               disabled={isLive || routes.length === 0}
-              className="w-full appearance-none rounded-xl border border-slate-700 bg-slate-800/70 px-3.5 py-2.5 pr-9 text-sm text-slate-100 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 disabled:opacity-50"
+              className="w-full appearance-none rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 pr-8 text-xs text-slate-100 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/25 disabled:opacity-50"
             >
               {routes.length === 0 && <option value="">Loading routes…</option>}
               {routes.map((r) => (
@@ -345,8 +364,8 @@ export default function DriverView({ routes, connected }) {
               ))}
             </select>
             <ChevronDown
-              size={15}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+              size={13}
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
           </span>
         </label>
@@ -354,7 +373,7 @@ export default function DriverView({ routes, connected }) {
         <button
           type="button"
           onClick={isLive ? endTrip : beginTrip}
-          className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition ${
+          className={`flex h-10 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold shadow-lg transition ${
             isLive
               ? 'bg-rose-500 text-white shadow-rose-500/25 hover:bg-rose-400'
               : 'bg-emerald-500 text-slate-950 shadow-emerald-500/25 hover:bg-emerald-400'
@@ -362,11 +381,11 @@ export default function DriverView({ routes, connected }) {
         >
           {isLive ? (
             <>
-              <Square size={16} /> End Trip
+              <Square size={14} /> End Trip
             </>
           ) : (
             <>
-              <Play size={16} /> Start Trip · Share Live GPS
+              <Play size={14} /> Start Trip · Share Live GPS
             </>
           )}
         </button>
@@ -374,71 +393,112 @@ export default function DriverView({ routes, connected }) {
         <button
           type="button"
           onClick={toggleSim}
-          className={`flex h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition ${
+          className={`flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[11px] font-semibold transition ${
             simEnabled
               ? 'border-violet-400/60 bg-violet-500/25 text-violet-200'
-              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-violet-400/40 hover:text-violet-200'
+              : 'border-slate-700 bg-slate-900/50 text-slate-300 hover:border-violet-400/40 hover:text-violet-200'
           }`}
         >
-          <Satellite size={15} />
-          {simEnabled ? 'Simulate GPS Movement · ON' : 'Simulate GPS Movement (Demo Mode)'}
+          <Satellite size={13} />
+          {simEnabled ? 'Simulate GPS Movement · ON' : 'Simulate GPS Movement (Demo)'}
         </button>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-xs text-rose-200">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            <p>{error}</p>
-          </div>
-        )}
-
-        {simEnabled && (
-          <p className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-violet-200">
-            <span className="font-bold">Demo mode:</span> a virtual jeepney cruises the selected
-            route at ~22–35 km/h — perfect for classroom defense without moving an inch.
+          <p className="flex items-start gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-[10px] text-rose-200">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            {error}
           </p>
         )}
 
-        {/* Live telemetry */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <StatCard icon={MapPin} label="Latitude" value={fmtCoord(telemetry.lat)} />
-          <StatCard icon={MapPin} label="Longitude" value={fmtCoord(telemetry.lng)} />
-          <StatCard icon={Gauge} label="Speed" value={`${telemetry.speed.toFixed(1)} km/h`} />
-          <StatCard
-            icon={Compass}
+        <div className="space-y-1.5 rounded-xl border border-slate-700/60 bg-slate-900/40 px-2.5 py-2">
+          <InfoRow label="Latitude" value={fmtCoord(telemetry.lat)} mono />
+          <InfoRow label="Longitude" value={fmtCoord(telemetry.lng)} mono />
+          <InfoRow label="Speed" value={`${telemetry.speed.toFixed(1)} km/h`} mono />
+          <InfoRow
             label="Heading"
             value={`${Math.round(telemetry.heading)}° ${cardinal(telemetry.heading)}`}
+            mono
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 p-2.5 text-center">
-            <Send size={13} className="mx-auto mb-1 text-cyan-400" />
-            <p className="font-mono text-sm font-bold">{sentCount}</p>
-            <p className="text-[9px] uppercase tracking-wide text-slate-500">Updates sent</p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-2 text-center">
+            <Send size={12} className="mx-auto mb-1 text-cyan-400" />
+            <p className="font-mono text-xs font-bold">{sentCount}</p>
+            <p className="text-[8px] uppercase tracking-wide text-slate-500">sent</p>
           </div>
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 p-2.5 text-center">
-            <Timer size={13} className="mx-auto mb-1 text-cyan-400" />
-            <p className="font-mono text-sm font-bold">{fmtDuration(elapsed)}</p>
-            <p className="text-[9px] uppercase tracking-wide text-slate-500">Trip time</p>
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-2 text-center">
+            <Timer size={12} className="mx-auto mb-1 text-cyan-400" />
+            <p className="font-mono text-xs font-bold">{fmtDuration(elapsed)}</p>
+            <p className="text-[8px] uppercase tracking-wide text-slate-500">trip</p>
           </div>
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 p-2.5 text-center">
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-2 text-center">
             <gpsBadge.icon
-              size={13}
+              size={12}
               className={`mx-auto mb-1 ${gpsBadge.cls} ${gpsBadge.spin ? 'animate-spin' : ''}`}
             />
-            <p className={`truncate text-[10px] font-semibold ${gpsBadge.cls}`}>{gpsBadge.text}</p>
-            <p className="text-[9px] uppercase tracking-wide text-slate-500">Receiver</p>
+            <p className={`truncate text-[9px] font-bold ${gpsBadge.cls}`}>{gpsBadge.text}</p>
+            <p className="text-[8px] uppercase tracking-wide text-slate-500">gps</p>
           </div>
         </div>
 
-        <p className="mt-auto pt-2 text-center text-[10px] leading-relaxed text-slate-500">
-          Fixes broadcast every {TICK_MS / 1000} s via Socket.IO · Look Out! Capstone
+        <p className="text-[10px] leading-relaxed text-slate-500">
+          Fixes broadcast every {TICK_MS / 1000} s via Socket.IO.
+          {simEnabled ? ' Demo mode drives a virtual jeepney at ~22–35 km/h.' : ''}
         </p>
+      </Section>
 
-      </aside>
+      <Section icon={Users} title="Passenger status" tint={full ? 'rose' : 'blue'}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAvailability(false)}
+            aria-pressed={!full}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
+              !full
+                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                : 'border border-slate-700 text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Users size={14} /> Still Vacant
+          </button>
+          <button
+            type="button"
+            onClick={() => setAvailability(true)}
+            aria-pressed={full}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
+              full
+                ? 'bg-red-500 text-white shadow-lg shadow-red-500/25'
+                : 'border border-slate-700 text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Users size={14} /> Full
+          </button>
+        </div>
+        <p className="flex items-center gap-1.5 text-[10px] leading-relaxed text-slate-400">
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: full ? '#ef4444' : '#3b82f6' }}
+          />
+          {full
+            ? 'Your jeepney shows red — commuters see "no more seats".'
+            : 'Your jeepney shows blue — commuters know you can still pick them up.'}
+        </p>
+      </Section>
+    </>
+  );
 
-      {/* ------------------------ live preview map ------------------------ */}
-      <section className="relative h-80 lg:h-auto">
+  /* --------------------------------- stage --------------------------------- */
+  return (
+    <AppShell
+      brand="Driver"
+      panel={panel}
+      open={drawerOpen}
+      onCloseDrawer={onCloseDrawer}
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
+    >
+      <section className="absolute inset-0">
         <MapContainer
           center={ILOILO_CENTER}
           zoom={13}
@@ -462,24 +522,51 @@ export default function DriverView({ routes, connected }) {
           {telemetry.lat != null && selectedRoute && (
             <VehicleMarker
               vehicle={{
-                vehicleId: metaRef.current?.vehicleId ?? (vehicleId || 'YOU'),
+                vehicleId: metaRef.current?.vehicleId ?? (activePlate || 'YOU'),
                 lat: telemetry.lat,
                 lng: telemetry.lng,
                 speed: telemetry.speed,
                 heading: telemetry.heading,
                 updatedAt: Date.now(),
+                full,
               }}
               route={selectedRoute}
             />
           )}
         </MapContainer>
 
+        {/* --------------- slim status bar (keeps the map visible) --------------- */}
+        <div className="pointer-events-none absolute left-2 right-2 top-2 z-[1000] flex flex-wrap items-center gap-2 lg:left-3 lg:top-3">
+          <div className="pointer-events-auto flex h-10 items-center gap-2 rounded-full border border-slate-700/70 bg-slate-900/90 px-3 shadow-xl backdrop-blur">
+            <span
+              className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${
+                isLive ? 'text-emerald-300' : 'text-slate-400'
+              }`}
+            >
+              {isLive ? <PulseDot color="emerald" /> : <Satellite size={12} />}
+              {isLive ? 'On air' : 'Offline'}
+            </span>
+            <span className="h-4 w-px bg-slate-700" />
+            <span className="font-mono text-[11px] font-bold text-slate-100">
+              {metaRef.current?.vehicleId ?? activePlate ?? 'no plate'}
+            </span>
+            {isLive && (
+              <>
+                <span className="h-4 w-px bg-slate-700" />
+                <span className="font-mono text-[10px] text-slate-400">
+                  {telemetry.speed.toFixed(0)} km/h · {sentCount} sent
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Follow-me toggle */}
-        <div className="absolute right-3 top-3 z-[1000]">
+        <div className="absolute right-2 top-2 z-[1000] lg:right-3 lg:top-3">
           <button
             type="button"
             onClick={() => setFollow((f) => !f)}
-            className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur transition ${
+            className={`flex h-10 items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold backdrop-blur transition ${
               follow
                 ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
                 : 'border-slate-600 bg-slate-900/80 text-slate-300'
@@ -495,12 +582,54 @@ export default function DriverView({ routes, connected }) {
             <div className="rounded-2xl border border-slate-700/60 bg-slate-900/90 px-5 py-4 text-center shadow-xl backdrop-blur">
               <Satellite size={22} className="mx-auto mb-1.5 animate-pulse text-cyan-400" />
               <p className="text-sm font-semibold">Waiting for your first GPS fix…</p>
-              <p className="mt-0.5 text-xs text-slate-400">Start a trip or enable the simulator.</p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Start a trip (or the simulator) from the panel.
+              </p>
             </div>
           </div>
         )}
       </section>
-    </div>
 
+      {/* ------------- bottom-right corner: pokes + availability ------------- */}
+      <div className="pointer-events-none fixed bottom-7 right-2 z-[1200] flex flex-col items-end gap-2.5 sm:right-4 lg:bottom-8 lg:right-5">
+        <DriverPokes plate={activePlate} className="pointer-events-auto" />
+
+        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-slate-700/70 bg-slate-900/90 p-1.5 shadow-xl backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setAvailability(false)}
+            aria-pressed={!full}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+              !full
+                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Users size={14} /> Still Vacant
+          </button>
+          <button
+            type="button"
+            onClick={() => setAvailability(true)}
+            aria-pressed={full}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+              full
+                ? 'bg-red-500 text-white shadow-lg shadow-red-500/25'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Users size={14} /> Full
+          </button>
+        </div>
+
+        <p className="pointer-events-none flex items-center gap-1 rounded-full bg-slate-900/80 px-2.5 py-1 text-[10px] font-bold text-slate-300 backdrop-blur">
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ backgroundColor: full ? '#ef4444' : '#3b82f6' }}
+          />
+          {full ? 'Full — commuters see red' : 'Still vacant — commuters see blue'}
+          {isLive && <Check size={11} className="text-emerald-400" />}
+        </p>
+      </div>
+    </AppShell>
   );
 }

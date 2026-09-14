@@ -6,6 +6,8 @@
  *   REST   : /api/health, /api/routes (4 LPTRP routes w/ fare matrices)
  *   SOCKET : updateLocation -> driverMoved fan-out
  *            activeDrivers snapshot for late joiners
+ *            full/vacant flag + setAvailability broadcast
+ *            poke relay + pokeLog replay
  *            endTrip       -> driverDisconnected cleanup
  */
 
@@ -116,6 +118,62 @@ async function main() {
       last.routeId === 'tagbak-city-proper',
   );
 
+  /* --------------------------- availability -------------------------- */
+  driver.emit('updateLocation', {
+    vehicleId: 'test-01',
+    routeId: 'tagbak-city-proper',
+    lat: 10.723,
+    lng: 122.5621,
+    speed: 20,
+    heading: 91,
+    full: true,
+  });
+  await wait(250);
+  check(
+    'full flag carried through driverMoved',
+    movedPayloads[movedPayloads.length - 1]?.full === true,
+  );
+
+  const beforeToggle = movedPayloads.length;
+  driver.emit('setAvailability', { vehicleId: 'test-01', full: false });
+  await wait(250);
+  const toggled = movedPayloads.slice(beforeToggle).pop();
+  check(
+    'setAvailability broadcasts "Still Vacant" immediately',
+    !!toggled && toggled.vehicleId === 'TEST-01' && toggled.full === false,
+  );
+
+  /* ------------------------------- pokes ------------------------------ */
+  const pokesSeen = [];
+  driver.on('pokeReceived', (payload) => pokesSeen.push(payload));
+
+  commuter.emit('poke', {
+    toPlate: 'test-01',
+    fromName: 'Smoke Commuter',
+    message: 'Poke! 👋',
+    lat: 10.72,
+    lng: 122.5621,
+    routeId: 'tagbak-city-proper',
+  });
+  await wait(300);
+  check(
+    'poke reaches the driver console with a running count',
+    pokesSeen.length === 1 && pokesSeen[0].plate === 'TEST-01' && pokesSeen[0].count === 1,
+    `count=${pokesSeen[0]?.count}`,
+  );
+  check(
+    'poke keeps who sent it and what it says',
+    pokesSeen[0]?.poke?.message === 'Poke! 👋' &&
+      pokesSeen[0]?.poke?.fromName === 'Smoke Commuter',
+  );
+
+  const pokeApi = await getJson('http://localhost:4399/api/pokes');
+  check(
+    'GET /api/pokes reports the total',
+    pokeApi.success === true && pokeApi.total === 1 && pokeApi.counts['TEST-01'] === 1,
+    `total=${pokeApi.total}`,
+  );
+
   // Late joiner must receive the fleet snapshot immediately.
   const lateJoinerSnapshot = await new Promise((resolve) => {
     const late = io('http://localhost:4399', { transports: ['websocket'] });
@@ -127,6 +185,20 @@ async function main() {
   check(
     'late joiner receives activeDrivers snapshot',
     Array.isArray(lateJoinerSnapshot) && lateJoinerSnapshot.some((v) => v.vehicleId === 'TEST-01'),
+  );
+
+  // …and the poke log, so a refreshed driver console is never blank.
+  const lateJoinerPokes = await new Promise((resolve) => {
+    const late = io('http://localhost:4399', { transports: ['websocket'] });
+    late.on('pokeLog', (log) => {
+      resolve(log);
+      late.disconnect();
+    });
+  });
+  check(
+    'late joiner receives the poke log replay',
+    lateJoinerPokes?.['TEST-01']?.count === 1 && lateJoinerPokes['TEST-01'].recent.length === 1,
+    `count=${lateJoinerPokes?.['TEST-01']?.count}`,
   );
 
   // End trip must purge the vehicle everywhere.

@@ -8,7 +8,10 @@
  *  1. REST   : serve the static LPTRP route catalogue (GET /api/routes)
  *  2. WS-IN  : receive live GPS fixes from driver devices ("updateLocation")
  *  3. WS-OUT : fan every fix out to all connected commuter maps ("driverMoved")
- *  4. Hygiene: drop vehicles on disconnect / end-trip / stale silence
+ *  4. POKES  : relay commuter "poke" taps to the driver consoles
+ *              (the Firebase/Firestore path is preferred by the client; this is
+ *              the offline/demo fallback + an always-on in-memory log)
+ *  5. Hygiene: drop vehicles on disconnect / end-trip / stale silence
  */
 
 const express = require('express');
@@ -24,6 +27,14 @@ const SWEEP_INTERVAL_MS = 45 * 1000;
 
 /** In-memory live fleet store: { [vehicleId]: record } */
 const activeDrivers = {};
+
+/**
+ * Poke log per plate: { [plate]: { count, recent: [poke, ...] } }
+ * Replayed to every client on connect ("pokeLog") so a driver who refreshes
+ * still sees the pokes she already received.
+ */
+const pokesByPlate = {};
+const MAX_POKES_KEPT = 50;
 
 /**
  * CORS configuration: "*" by default, or a comma-separated allow-list via the
@@ -56,7 +67,7 @@ app.get('/', (_req, res) => {
     status: 'ok',
     message: 'Look Out! Backend is running',
     service: 'look-out-backend',
-    endpoints: ['/', '/api/routes', '/api/drivers', '/api/health'],
+    endpoints: ['/', '/api/routes', '/api/drivers', '/api/pokes', '/api/health'],
     timestamp: new Date().toISOString(),
   });
 });
@@ -71,6 +82,17 @@ app.get('/api/routes', (_req, res) => {
 app.get('/api/drivers', (_req, res) => {
   const drivers = Object.values(activeDrivers);
   res.json({ success: true, count: drivers.length, drivers });
+});
+
+// Poke log snapshot (handy for debugging + demo mode drivers).
+app.get('/api/pokes', (_req, res) => {
+  const plates = Object.entries(pokesByPlate).map(([plate, entry]) => ({
+    plate,
+    count: entry.count,
+    recent: entry.recent,
+  }));
+  const total = plates.reduce((sum, entry) => sum + entry.count, 0);
+  res.json({ success: true, total, plates, counts: countsByPlate() });
 });
 
 // Liveness probe for demos and uptime checks.
@@ -107,6 +129,47 @@ function liveCount() {
   return Object.keys(activeDrivers).length;
 }
 
+/** { plate: totalPokes } — sent to clients so counters are right on load. */
+function countsByPlate() {
+  return Object.fromEntries(
+    Object.entries(pokesByPlate).map(([plate, entry]) => [plate, entry.count]),
+  );
+}
+
+/**
+ * Record one commuter poke against a plate.
+ * @returns {{ plate: string, count: number, poke: object }|null}
+ */
+function recordPoke(payload = {}) {
+  const plate = String(payload.toPlate ?? '').trim().toUpperCase();
+  if (!plate) return null;
+
+  const asCoord = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+
+  const poke = {
+    toPlate: plate,
+    fromName:
+      typeof payload.fromName === 'string' && payload.fromName.trim()
+        ? payload.fromName.trim().slice(0, 40)
+        : 'A commuter',
+    message:
+      typeof payload.message === 'string' && payload.message.trim()
+        ? payload.message.trim().slice(0, 120)
+        : 'Poke! 👋',
+    lat: asCoord(payload.lat),
+    lng: asCoord(payload.lng),
+    routeId: payload.routeId ?? null,
+    createdAt: Date.now(),
+  };
+
+  const entry = pokesByPlate[plate] ?? { count: 0, recent: [] };
+  entry.count += 1;
+  entry.recent = [poke, ...entry.recent].slice(0, MAX_POKES_KEPT);
+  pokesByPlate[plate] = entry;
+
+  return { plate, count: entry.count, poke };
+}
+
 function removeVehicle(vehicleId, reason) {
   if (!activeDrivers[vehicleId]) return false;
   delete activeDrivers[vehicleId];
@@ -120,6 +183,10 @@ io.on('connection', (socket) => {
 
   // Late joiners immediately receive a snapshot of the current fleet.
   socket.emit('activeDrivers', Object.values(activeDrivers));
+
+  // …and the poke log, so a driver console that just reloaded still shows
+  // every poke received while she was on air.
+  socket.emit('pokeLog', pokesByPlate);
 
   /**
    * Driver devices push GPS fixes here.
@@ -146,12 +213,38 @@ io.on('connection', (socket) => {
       lng,
       speed: Number.isFinite(Number(payload.speed)) ? Number(payload.speed) : 0,
       heading: Number.isFinite(Number(payload.heading)) ? Number(payload.heading) : 0,
+      // "Full" (red on the map) vs "still vacant" (blue). Defaults to vacant.
+      full: payload.full === true,
       socketId: socket.id,
       updatedAt: Date.now(),
     };
 
     activeDrivers[record.vehicleId] = record;
     io.emit('driverMoved', record);
+  });
+
+  /**
+   * Driver toggled Full / Still Vacant between GPS fixes — push the new state
+   * out immediately instead of waiting for the next 3 s tick.
+   */
+  socket.on('setAvailability', (payload = {}) => {
+    const vehicleId = String(payload.vehicleId ?? '').trim().toUpperCase();
+    const record = vehicleId ? activeDrivers[vehicleId] : null;
+    if (!record) return;
+    record.full = payload.full === true;
+    record.updatedAt = Date.now();
+    io.emit('driverMoved', record);
+  });
+
+  /**
+   * Commuter poked a jeepney. Relayed to everyone (drivers filter by plate) and
+   * kept in the in-memory log so counters survive a page reload.
+   */
+  socket.on('poke', (payload = {}) => {
+    const result = recordPoke(payload);
+    if (!result) return;
+    io.emit('pokeReceived', result);
+    console.log(`[👋] Poke → ${result.plate} (total ${result.count}) from ${result.poke.fromName}`);
   });
 
   /** Driver pressed "End Trip" — remove instantly instead of waiting for disconnect. */

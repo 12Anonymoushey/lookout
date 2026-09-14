@@ -20,7 +20,7 @@ No API keys. No credit cards. OpenStreetMap + open-source only.
 
 ```
 look_out!/
-├── backend/
+├─  ─ backend/
 │   ├── server.js              # Express + Socket.IO realtime server (port 4000)
 │   └── data/lptrp-routes.js   # Static LPTRP routes, stops & fare matrices
 ├── frontend/

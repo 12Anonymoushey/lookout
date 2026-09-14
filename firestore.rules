@@ -1,0 +1,86 @@
+rules_version = '2';
+
+/**
+ * Look Out! — Firestore security rules.
+ *
+ * HOW TO PUBLISH
+ *   Firebase console → Build → Firestore Database → Rules tab → paste this file
+ *   → Publish. Without these rules the default "deny all" blocks signup,
+ *   plate management and the poke log.
+ *
+ * ROLES
+ *   commuter  may read/write only their own profile, may poke any jeepney
+ *   driver    same, plus their own plate numbers (stored in their profile)
+ *   admin     may read/write/delete EVERY profile, list every poke and use both
+ *             the commuter and the driver view in the app.
+ *
+ *   The admin role cannot be self-granted: `role` is immutable on ordinary
+ *   self-updates, and the only escape hatch is the owner of an email listed in
+ *   isAdminEmail() below (keep that list in sync with ADMIN_EMAILS in
+ *   frontend/src/services/authService.js).
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------- helpers
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function profile(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn()
+             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             && profile(request.auth.uid).role == 'admin';
+    }
+
+    function isAdminEmail() {
+      return signedIn() && request.auth.token.email in ['joshrika@gmail.com'];
+    }
+
+    // ------------------------------------------------------------- profiles
+    match /users/{uid} {
+      // Admins see everyone; a user sees only their own record.
+      allow read: if isOwner(uid) || isAdmin();
+
+      // A commuter/driver may only create their own record with the role they
+      // signed up for — 'admin' is reserved for the admin address below.
+      allow create: if isOwner(uid)
+                    && (request.resource.data.role in ['commuter', 'driver']
+                        || (request.resource.data.role == 'admin' && isAdminEmail()));
+
+      allow update: if isAdmin()
+                    || (isOwner(uid) && (
+                         // role changes are admin-only, except the admin address
+                         // promoting itself the first time it logs in
+                         request.resource.data.role == resource.data.role
+                         || (request.resource.data.role == 'admin' && isAdminEmail())
+                       ));
+
+      allow delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------- poke log
+    match /pokes/{pokeId} {
+      allow read:   if signedIn();                       // admin + driver consoles
+      allow create: if signedIn()
+                    && request.resource.data.toPlate is string
+                    && request.resource.data.message.size() <= 140;
+      allow update, delete: if isAdmin();                // pokes are history
+    }
+
+    // ---------------------------------- poke counters (one doc per plate)
+    match /pokeCounts/{plate} {
+      allow read:   if signedIn();
+      allow create, update: if signedIn() && request.resource.data.count is int;
+      allow delete: if isAdmin();
+    }
+  }
+}
