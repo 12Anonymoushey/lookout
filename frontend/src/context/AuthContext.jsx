@@ -86,7 +86,14 @@ export function AuthProvider({ children }) {
       (docSnap) => {
         setProfileError('');
         if (docSnap) {
-          setProfile(docSnap);
+          // Hand-made documents sometimes lack `role`; normalise it so the UI
+          // never sees an undefined role (that used to strand the user on the
+          // login screen / make App's view-guard flip from tab to tab).
+          setProfile(
+            docSnap.role
+              ? docSnap
+              : { ...docSnap, role: requestedRole ?? readStoredRole(user.uid) ?? 'commuter' },
+          );
           return;
         }
         // Missing document (rules blocked the read, or an account made by hand).
@@ -245,7 +252,15 @@ export function AuthProvider({ children }) {
     [demo, user],
   );
 
-  const role = activeProfile?.role ?? null;
+  // Role can never be undefined here: legacy/hand-made profiles without a
+  // `role` field fall back to the remembered login tab, then to 'commuter'.
+  // A null role only happens while actually signed out (user == null).
+  const role =
+    demo?.role ||
+    profile?.role ||
+    requestedRole ||
+    (user ? readStoredRole(user.uid) : null) ||
+    (user ? 'commuter' : null);
   // Admins roam freely; everyone else is locked to their own side of the app.
   const isAdmin = role === 'admin';
 

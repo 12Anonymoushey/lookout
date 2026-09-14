@@ -237,9 +237,13 @@ export async function signUpAccount({
 }
 
 /**
- * Log in and make sure the account really belongs to the selected tab.
- * A driver signing in on the Commuter tab (or vice-versa) is rejected loudly —
- * silently mismatching roles is the classic source of "my plates are gone" bugs.
+ * Log in and hand back the account's real profile.
+ *
+ * If the account is registered with a role that differs from the selected tab
+ * (a driver logging in on the Commuter tab — or vice-versa), the session is
+ * KEPT and the account's own role wins. Forcing a Firebase sign-out here is
+ * what used to make drivers feel "logged out" the moment they logged in from
+ * the wrong tab.
  */
 export async function loginAccount({ role, email, password }) {
   if (!firebaseReady) throw new Error('Firebase is not configured yet.');
@@ -256,23 +260,24 @@ export async function loginAccount({ role, email, password }) {
     console.warn('[Look Out!] Profile read failed, continuing with auth data:', err);
   }
 
-  const accountRole = profile?.role;
+  const accountRole = profile?.role || null;
 
-  // Admins may use either tab; everyone else must match their own role.
-  if (accountRole && accountRole !== role && !admin) {
-    await signOut(auth);
-    throw new Error(
-      `That account is registered as a ${accountRole}. Switch to the ${accountRole} tab to log in.`,
+  // Admins may use either tab. For everyone else the account's own role wins.
+  let effectiveRole = role;
+  if (accountRole && accountRole !== effectiveRole && !admin) {
+    effectiveRole = accountRole;
+    console.info(
+      `[Look Out!] ${cleanEmail} is registered as ${accountRole} — adopting that role.`,
     );
   }
 
   // Legacy/hand-made account without a profile document — self-heal it.
   if (!profile) {
-    profile = profileFromUser(cred.user, admin ? 'admin' : role);
+    profile = profileFromUser(cred.user, admin ? 'admin' : effectiveRole);
     try {
       await createProfile(uid, {
         uid,
-        role: admin ? 'admin' : role,
+        role: admin ? 'admin' : effectiveRole,
         fullName: profile.fullName,
         email: profile.email,
         phone: '',
@@ -292,6 +297,11 @@ export async function loginAccount({ role, email, password }) {
       console.warn('[Look Out!] Could not promote the admin profile:', err);
     }
   }
+
+  // Hand-made documents sometimes omit `role` — normalise it so the UI never
+  // sees an undefined role (that used to leave drivers stranded on the login
+  // screen instead of their console).
+  if (!profile.role) profile = { ...profile, role: admin ? 'admin' : effectiveRole };
 
   return { user: cred.user, profile };
 }
