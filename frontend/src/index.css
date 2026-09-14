@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+/* ==================== LOOK OUT! — Pastel Palette ==================== */
+/*
+ * Hot Pink  #FF69B4  — primary accent, active states, CTAs
+ * Light Pink #FFB6C1 — soft backgrounds, hover states
+ * Light Yellow #FFFDE7 — badges, highlights, idle
+ * Light Cyan #E0FFFF — info, secondary accent, links
+ * Sky Blue  #87CEEB  — success, live, driver accent
+ */
+
+:root {
+  --lo-pink: #FF69B4;
+  --lo-pink-soft: #FFB6C1;
+  --lo-yellow: #FFFDE7;
+  --lo-cyan: #E0FFFF;
+  --lo-sky: #87CEEB;
+  --lo-panel: #1a1028;
+  --lo-panel-border: #2d2040;
+  --lo-card: #1e1430;
+  --lo-card-border: #3a2a50;
+}
+
 /* ------------------------------ Base ------------------------------ */
 html,
 body,
@@ -10,36 +31,35 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background-color: #020617; /* slate-950 */
-  color: #e2e8f0;
+  background-color: #0e0a18;
+  color: #f0e6f6;
 }
 
-/* Dark dropdown lists (Chromium) */
 select option {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #1e1430;
+  color: #f0e6f6;
 }
 
-/* -------------------- Leaflet dark-theme overrides ---------------- */
+/* -------------------- Leaflet overrides ---------------- */
 .leaflet-container {
-  background-color: #0b1120;
+  background-color: #0b0814;
   font-family: inherit;
 }
 
 .leaflet-tile-pane {
-  filter: brightness(0.78) saturate(0.85) contrast(1.05);
+  filter: brightness(0.82) saturate(0.9) contrast(1.02);
 }
 
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background-color: #0f172a;
-  color: #e2e8f0;
-  border: 1px solid rgba(51, 65, 85, 0.8);
+  background-color: var(--lo-panel);
+  color: #f0e6f6;
+  border: 1px solid var(--lo-panel-border);
 }
 
 .leaflet-popup-content-wrapper {
   border-radius: 0.9rem;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 .leaflet-popup-content {
@@ -48,33 +68,33 @@ select option {
 }
 
 a.leaflet-popup-close-button {
-  color: #94a3b8 !important;
+  color: #b8a0cc !important;
 }
 
 .leaflet-tooltip {
-  background-color: #0f172a;
-  color: #e2e8f0;
-  border: 1px solid #334155;
+  background-color: var(--lo-panel);
+  color: #f0e6f6;
+  border: 1px solid var(--lo-panel-border);
   border-radius: 0.5rem;
   font-size: 11px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .leaflet-tooltip-top::before {
-  border-top-color: #334155;
+  border-top-color: var(--lo-panel-border);
 }
 
 .leaflet-control-attribution {
-  background: rgba(15, 23, 42, 0.75) !important;
-  color: #64748b !important;
+  background: rgba(26, 16, 40, 0.8) !important;
+  color: #8a7098 !important;
   font-size: 10px !important;
 }
 
 .leaflet-control-attribution a {
-  color: #38bdf8 !important;
+  color: var(--lo-sky) !important;
 }
 
-/* --------------------- Custom vehicle DivIcons -------------------- */
+/* --------------------- Vehicle DivIcons -------------------- */
 .lo-icon-wrapper {
   background: transparent;
   border: none;
@@ -97,7 +117,7 @@ a.leaflet-popup-close-button {
   height: 34px;
   margin-left: -17px;
   border-radius: 9999px;
-  border: 2px solid var(--lo, #22d3ee);
+  border: 2px solid var(--lo-pink);
   animation: lo-pulse 2s ease-out infinite;
 }
 
@@ -112,8 +132,8 @@ a.leaflet-popup-close-button {
   margin-top: -2px;
   padding: 1px 5px;
   border-radius: 9999px;
-  background-color: rgba(2, 6, 23, 0.85);
-  color: #f1f5f9;
+  background-color: rgba(14, 10, 24, 0.9);
+  color: #f0e6f6;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -124,21 +144,12 @@ a.leaflet-popup-close-button {
 }
 
 @keyframes lo-pulse {
-  0% {
-    transform: scale(0.55);
-    opacity: 0.85;
-  }
-  70% {
-    transform: scale(1.45);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.45);
-    opacity: 0;
-  }
+  0% { transform: scale(0.55); opacity: 0.85; }
+  70% { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
 }
 
-/* --------------- "You are here" commuter location marker ------------ */
+/* --------------- "You are here" commuter marker ------------ */
 .lo-me-wrapper {
   background: transparent;
   border: none;
@@ -157,16 +168,16 @@ a.leaflet-popup-close-button {
   position: absolute;
   inset: 4px;
   border-radius: 9999px;
-  background: #22d3ee;
-  border: 2px solid #020617;
-  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.35);
+  background: var(--lo-pink);
+  border: 2px solid #0e0a18;
+  box-shadow: 0 0 0 2px rgba(255, 105, 180, 0.35);
 }
 
 .lo-me__halo {
   position: absolute;
   inset: -6px;
   border-radius: 9999px;
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(255, 105, 180, 0.28);
   animation: lo-pulse 2.4s ease-out infinite;
 }
 
@@ -176,16 +187,16 @@ a.leaflet-popup-close-button {
   white-space: nowrap;
   padding: 1px 6px;
   border-radius: 9999px;
-  background-color: rgba(2, 6, 23, 0.9);
-  border: 1px solid rgba(34, 211, 238, 0.55);
-  color: #67e8f9;
+  background-color: rgba(14, 10, 24, 0.92);
+  border: 1px solid rgba(255, 105, 180, 0.55);
+  color: var(--lo-pink-soft);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-/* --------------------- "Poke" speech bubble on the map -------------- */
+/* --------------------- "Poke" speech bubble -------------- */
 .lo-poke-wrapper {
   background: transparent;
   border: none;
@@ -198,14 +209,14 @@ a.leaflet-popup-close-button {
   gap: 5px;
   padding: 5px 11px 5px 9px;
   border-radius: 9999px;
-  border: 1.5px solid rgba(56, 189, 248, 0.7);
-  background: linear-gradient(180deg, #0ea5e9, #0369a1);
-  color: #f8fafc;
+  border: 1.5px solid rgba(255, 105, 180, 0.7);
+  background: linear-gradient(180deg, var(--lo-pink), #d4509a);
+  color: #fff;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.03em;
   white-space: nowrap;
-  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.55);
+  box-shadow: 0 8px 20px rgba(14, 10, 24, 0.6);
   transform-origin: 50% 120%;
   animation: lo-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: pointer;
@@ -222,7 +233,7 @@ a.leaflet-popup-close-button {
   margin-left: -5px;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 7px solid #0369a1;
+  border-top: 7px solid #d4509a;
 }
 
 .lo-poke__bob {
@@ -230,33 +241,22 @@ a.leaflet-popup-close-button {
 }
 
 .lo-poke--sent {
-  background: linear-gradient(180deg, #22c55e, #15803d);
-  border-color: rgba(134, 239, 172, 0.8);
+  background: linear-gradient(180deg, var(--lo-sky), #5ab0d8);
+  border-color: rgba(135, 206, 235, 0.8);
 }
 
 .lo-poke--sent::after {
-  border-top-color: #15803d;
+  border-top-color: #5ab0d8;
 }
 
 @keyframes lo-pop {
-  0% {
-    transform: scale(0.4);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 @keyframes lo-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
 /* --------------------------- Scrollbars --------------------------- */
@@ -266,7 +266,7 @@ a.leaflet-popup-close-button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #3a2a50;
   border-radius: 8px;
 }
 
@@ -274,11 +274,7 @@ a.leaflet-popup-close-button {
   background: transparent;
 }
 
-/* ------------------ Chrome-style Commuter / Driver tabs ------------------ */
-:root {
-  --lo-panel: #0b1220;
-}
-
+/* ------------------ Chrome-style tabs ------------------ */
 .chrome-tabs {
   display: flex;
   align-items: flex-end;
@@ -297,13 +293,12 @@ a.leaflet-popup-close-button {
   padding: 0 18px;
   margin-left: -10px;
   border: none;
-  background: #162033;
-  color: #94a3b8;
+  background: #241a35;
+  color: #b8a0cc;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.01em;
   cursor: pointer;
-  /* trapezoid: slanted shoulders + flat base, exactly like a browser tab */
   clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -313,19 +308,19 @@ a.leaflet-popup-close-button {
 }
 
 .chrome-tab:hover {
-  background: #1e2b40;
-  color: #e2e8f0;
+  background: #2e2045;
+  color: #f0e6f6;
 }
 
 .chrome-tab[aria-selected='true'] {
   z-index: 1;
   height: 46px;
   background: var(--lo-panel);
-  color: #67e8f9;
+  color: var(--lo-pink);
 }
 
 .chrome-tab:focus-visible {
-  outline: 2px solid #22d3ee;
+  outline: 2px solid var(--lo-pink);
   outline-offset: -3px;
 }
 
@@ -343,4 +338,57 @@ a.leaflet-popup-close-button {
   .chrome-tab__hint {
     display: none;
   }
+}
+
+/* ------------------ Toast animation ------------------ */
+@keyframes toast-in {
+  0% { transform: translateX(-50%) translateY(-12px); opacity: 0; }
+  100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+.lo-toast {
+  animation: toast-in 0.25s ease-out;
+}
+
+/* ------------------ Kebab menu ------------------ */
+.lo-kebab {
+  position: relative;
+}
+
+.lo-kebab-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  min-width: 160px;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--lo-card-border);
+  background: var(--lo-panel);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+.lo-kebab-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  color: #d8c8e8;
+  transition: background 0.12s;
+}
+
+.lo-kebab-item:hover {
+  background: rgba(255, 105, 180, 0.1);
+}
+
+.lo-kebab-item--danger {
+  color: #f87171;
+}
+
+.lo-kebab-item--danger:hover {
+  background: rgba(248, 113, 113, 0.1);
 }

@@ -1,12 +1,10 @@
-/**
- * Small status indicator: a solid dot wrapped in an animated "ping" halo.
- * Colors map onto Tailwind palette names.
- */
 const COLOR_CLASSES = {
   emerald: 'bg-emerald-400',
   rose: 'bg-rose-400',
   amber: 'bg-amber-400',
-  cyan: 'bg-cyan-400',
+  pink: 'bg-[#FF69B4]',
+  cyan: 'bg-[var(--lo-cyan)]',
+  sky: 'bg-[var(--lo-sky)]',
   slate: 'bg-slate-400',
 };
 

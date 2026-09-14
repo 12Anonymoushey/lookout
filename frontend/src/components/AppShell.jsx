@@ -1,17 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 
-/**
- * APP SHELL
- * The dashboard frame shared by the Commuter, Driver and Admin views:
- *
- *   desktop → a real sidebar on the left (collapsible to give the map the
- *             whole window) plus the main stage
- *   mobile  → the stage goes full-bleed and the same sidebar slides in as a
- *             drawer from the burger in the navbar
- *
- * `panel` is rendered inside the sidebar/drawer; `children` is the main stage.
- */
 export default function AppShell({
   panel,
   children,
@@ -23,11 +12,11 @@ export default function AppShell({
 }) {
   return (
     <div className="relative flex h-full min-h-0">
-      {/* ------------------------------ desktop sidebar ---------------------------- */}
+      {/* Desktop sidebar */}
       {!collapsed && (
-        <aside className="hidden w-[320px] shrink-0 flex-col border-r border-slate-800 bg-slate-900/60 lg:flex xl:w-[350px]">
-          <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-800 px-3">
-            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+        <aside className="hidden w-[320px] shrink-0 flex-col border-r border-[var(--lo-panel-border)] bg-[var(--lo-panel)]/60 lg:flex xl:w-[350px]">
+          <header className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--lo-panel-border)] px-3">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b8a0cc]">
               {brand}
             </span>
             <button
@@ -35,7 +24,7 @@ export default function AppShell({
               onClick={onToggleCollapse}
               title="Hide panel"
               aria-label="Hide panel"
-              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+              className="rounded-lg p-1.5 text-[#8a7098] transition hover:bg-[#3a2a50] hover:text-[#d8c8e8]"
             >
               <PanelLeftClose size={15} />
             </button>
@@ -44,7 +33,7 @@ export default function AppShell({
         </aside>
       )}
 
-      {/* ---------------------------------- stage --------------------------------- */}
+      {/* Stage */}
       <div className="relative min-h-0 flex-1">
         {collapsed && (
           <button
@@ -52,7 +41,7 @@ export default function AppShell({
             onClick={onToggleCollapse}
             title="Show panel"
             aria-label="Show panel"
-            className="absolute left-3 top-3 z-[1100] hidden items-center gap-1.5 rounded-full border border-slate-600/80 bg-slate-900/90 px-3 py-2 text-xs font-bold text-slate-200 shadow-xl backdrop-blur transition hover:border-cyan-400 hover:text-cyan-300 lg:flex"
+            className="absolute left-3 top-3 z-[1100] hidden items-center gap-1.5 rounded-full border border-[var(--lo-card-border)] bg-[var(--lo-panel)]/90 px-3 py-2 text-xs font-bold text-[#e0d4ec] shadow-xl backdrop-blur transition hover:border-[var(--lo-pink)] hover:text-[var(--lo-pink)] lg:flex"
           >
             <PanelLeftOpen size={14} /> Panel
           </button>
@@ -60,25 +49,25 @@ export default function AppShell({
         {children}
       </div>
 
-      {/* ------------------------------ mobile drawer ----------------------------- */}
+      {/* Mobile drawer */}
       {open && (
         <div className="lg:hidden">
           <button
             type="button"
             aria-label="Close panel"
             onClick={onCloseDrawer}
-            className="fixed inset-0 z-[1400] cursor-default bg-slate-950/70 backdrop-blur-sm"
+            className="fixed inset-0 z-[1400] cursor-default bg-[#0e0a18]/70 backdrop-blur-sm"
           />
-          <div className="fixed inset-y-0 left-0 z-[1500] flex w-[88vw] max-w-sm flex-col border-r border-slate-800 bg-slate-900 shadow-2xl">
-            <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-800 px-3.5">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-300">
+          <div className="fixed inset-y-0 left-0 z-[1500] flex w-[88vw] max-w-sm flex-col border-r border-[var(--lo-panel-border)] bg-[var(--lo-panel)] shadow-2xl">
+            <header className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--lo-panel-border)] px-3.5">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#d8c8e8]">
                 {brand}
               </span>
               <button
                 type="button"
                 onClick={onCloseDrawer}
                 aria-label="Close panel"
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+                className="rounded-lg p-1.5 text-[#8a7098] transition hover:bg-[#3a2a50] hover:text-[#d8c8e8]"
               >
                 <X size={16} />
               </button>
@@ -92,32 +81,32 @@ export default function AppShell({
 }
 
 /** Collapsible titled card used inside the panel. */
-export function Section({ icon: Icon, title, badge, children, defaultOpen = true, tint = 'cyan' }) {
+export function Section({ icon: Icon, title, badge, children, defaultOpen = true, tint = 'pink' }) {
   const [show, setShow] = useState(defaultOpen);
 
   const tintClass = {
-    cyan: 'text-cyan-400',
-    emerald: 'text-emerald-400',
-    violet: 'text-violet-400',
+    pink: 'text-[#FF69B4]',
+    cyan: 'text-[var(--lo-cyan)]',
+    sky: 'text-[var(--lo-sky)]',
+    yellow: 'text-[#ffe082]',
     rose: 'text-rose-400',
-    blue: 'text-blue-400',
-  }[tint];
+  }[tint] || 'text-[#FF69B4]';
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/40">
+    <section className="overflow-hidden rounded-2xl border border-[var(--lo-card-border)] bg-[var(--lo-card)]/40">
       <button
         type="button"
         onClick={() => setShow((v) => !v)}
         aria-expanded={show}
-        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition hover:bg-slate-800/60"
+        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition hover:bg-[#3a2a50]/40"
       >
-        <span className="flex min-w-0 items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-200">
+        <span className="flex min-w-0 items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#e0d4ec]">
           {Icon && <Icon size={13} className={`shrink-0 ${tintClass}`} />}
           <span className="truncate">{title}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge}
-          <ChevronDown size={14} className={`text-slate-400 transition ${show ? '' : '-rotate-90'}`} />
+          <ChevronDown size={14} className={`text-[#8a7098] transition ${show ? '' : '-rotate-90'}`} />
         </span>
       </button>
       {show && <div className="space-y-2.5 px-3.5 pb-3.5">{children}</div>}
@@ -125,12 +114,12 @@ export function Section({ icon: Icon, title, badge, children, defaultOpen = true
   );
 }
 
-/** Small key/value row used across the panels. */
+/** Small key/value row. */
 export function InfoRow({ label, value, mono = false }) {
   return (
     <div className="flex items-start justify-between gap-3 text-[11px]">
-      <span className="text-slate-400">{label}</span>
-      <span className={`truncate text-right text-slate-200 ${mono ? 'font-mono' : ''}`}>
+      <span className="text-[#8a7098]">{label}</span>
+      <span className={`truncate text-right text-[#e0d4ec] ${mono ? 'font-mono' : ''}`}>
         {value ?? '—'}
       </span>
     </div>
