@@ -89,11 +89,14 @@ export default function App() {
     else if (role === 'driver' || role === 'commuter') setView(role);
   }, [role]);
 
+  // Guard: only correct the view once a role is resolved. Without this,
+  // the effect loops endlessly during the initial load when canView* are false.
   useEffect(() => {
+    if (!role) return;
     if (view === 'admin' && !isAdmin) setView(canViewDriver ? 'driver' : 'commuter');
-    if (view === 'driver' && !canViewDriver) setView('commuter');
-    if (view === 'commuter' && !canViewCommuter) setView('driver');
-  }, [view, isAdmin, canViewCommuter, canViewDriver]);
+    else if (view === 'driver' && !canViewDriver) setView('commuter');
+    else if (view === 'commuter' && !canViewCommuter) setView('driver');
+  }, [role, view, isAdmin, canViewCommuter, canViewDriver]);
 
   useEffect(() => { setDrawerOpen(false); }, [view]);
 
@@ -102,8 +105,8 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-[#0e0a18] text-[#d8c8e8]">
-        <Loader2 size={26} className="animate-spin text-[var(--lo-pink)]" />
+      <div className="flex h-dvh flex-col items-center justify-center gap-3" style={{ background: 'var(--lo-bg)', color: 'var(--lo-text)' }}>
+        <Loader2 size={26} className="animate-spin" style={{ color: 'var(--lo-pink)' }} />
         <p className="text-sm font-semibold">Loading…</p>
       </div>
     );
@@ -119,23 +122,23 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#0e0a18] text-[#f0e6f6]">
+    <div className="flex h-dvh flex-col overflow-hidden" style={{ background: 'var(--lo-bg)', color: 'var(--lo-text)' }}>
       <Navbar view={view} onViewChange={switchView} connected={connected} profile={profile} role={role} isAdmin={isAdmin} isDemo={isDemo} onSignOut={signOut} onOpenSidebar={() => setDrawerOpen(true)} />
 
       {firebaseMissing && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-[11px] text-amber-200">
+        <div className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">
           <Bus size={13} className="shrink-0" /> Demo session — not saved.
         </div>
       )}
 
       {profileError && (
-        <div className="flex items-center gap-2 border-b border-rose-500/30 bg-rose-500/10 px-4 py-1.5 text-[11px] text-rose-200">
+        <div className="flex items-center gap-2 border-b border-rose-300 bg-rose-50 px-4 py-1.5 text-[11px] text-rose-700">
           <AlertTriangle size={13} className="shrink-0" /> {profileError}
         </div>
       )}
 
       {routesError && view !== 'admin' && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-700">
           <span className="flex items-center gap-2">
             <AlertTriangle size={14} className="shrink-0" /> {routesError}
           </span>
@@ -144,7 +147,6 @@ export default function App() {
           </button>
         </div>
       )}
-
       <main className="relative min-h-0 flex-1">
         {view === 'admin' ? (
           <AdminView vehicles={vehicles} {...shellProps} />

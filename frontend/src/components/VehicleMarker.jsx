@@ -66,7 +66,7 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
             <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--lo-pink)' }}>● Live</span>
           </div>
 
-          <p className="text-sm font-semibold text-[#f0e6f6]">{route?.name ?? 'Unknown route'}</p>
+          <p className="text-sm font-semibold text-[var(--lo-text)]">{route?.name ?? 'Unknown route'}</p>
 
           <p
             className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold"
@@ -76,13 +76,13 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
           </p>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-            <dt className="text-[#8a7098]">Speed</dt>
-            <dd className="text-right font-mono text-[#e0d4ec]">{(Number(vehicle.speed) || 0).toFixed(1)} km/h</dd>
-            <dt className="text-[#8a7098]">Next stop</dt>
-            <dd className="truncate text-right text-[#e0d4ec]">{nextInfo?.stop.name ?? '—'}</dd>
-            <dt className="text-[#8a7098]">Distance</dt>
-            <dd className="text-right text-[#e0d4ec]">{formatKm(nextInfo?.km)}</dd>
-            <dt className="text-[#8a7098]">ETA</dt>
+            <dt className="text-[var(--lo-text-secondary)]">Speed</dt>
+            <dd className="text-right font-mono text-[var(--lo-text)]">{(Number(vehicle.speed) || 0).toFixed(1)} km/h</dd>
+            <dt className="text-[var(--lo-text-secondary)]">Next stop</dt>
+            <dd className="truncate text-right text-[var(--lo-text)]">{nextInfo?.stop.name ?? '—'}</dd>
+            <dt className="text-[var(--lo-text-secondary)]">Distance</dt>
+            <dd className="text-right text-[var(--lo-text)]">{formatKm(nextInfo?.km)}</dd>
+            <dt className="text-[var(--lo-text-secondary)]">ETA</dt>
             <dd className="text-right font-bold" style={{ color: 'var(--lo-pink)' }}>{formatEta(nextInfo?.etaMin)}</dd>
           </dl>
 
@@ -105,7 +105,7 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
             </button>
           )}
 
-          <p className="text-[10px] text-[#8a7098]">
+          <p className="text-[10px] text-[var(--lo-text-secondary)]">
             Last fix: {new Date(vehicle.updatedAt).toLocaleTimeString()}
           </p>
         </div>

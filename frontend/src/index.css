@@ -2,23 +2,26 @@
 
 /* ==================== LOOK OUT! — Pastel Palette ==================== */
 /*
- * Hot Pink  #FF69B4  — primary accent, active states, CTAs
- * Light Pink #FFB6C1 — soft backgrounds, hover states
- * Light Yellow #FFFDE7 — badges, highlights, idle
- * Light Cyan #E0FFFF — info, secondary accent, links
- * Sky Blue  #87CEEB  — success, live, driver accent
+ * Bright Pink  #FF66A1 — primary accent, active states, CTAs
+ * Light Pink   #FFAAD3 — soft backgrounds, hover states
+ * Pastel Yellow #FFE875 — badges, highlights, idle
+ * Light Blue   #99E3FF — info, secondary accent, links
+ * Sky Blue     #5CE1FF — success, live, driver accent
  */
 
 :root {
-  --lo-pink: #FF69B4;
-  --lo-pink-soft: #FFB6C1;
-  --lo-yellow: #FFFDE7;
-  --lo-cyan: #E0FFFF;
-  --lo-sky: #87CEEB;
-  --lo-panel: #1a1028;
-  --lo-panel-border: #2d2040;
-  --lo-card: #1e1430;
-  --lo-card-border: #3a2a50;
+  --lo-pink: #FF66A1;
+  --lo-pink-soft: #FFAAD3;
+  --lo-yellow: #FFE875;
+  --lo-cyan: #99E3FF;
+  --lo-sky: #5CE1FF;
+  --lo-bg: #FFE875;
+  --lo-panel: #FFF5D6;
+  --lo-panel-border: #f0cc50;
+  --lo-card: #FFF0F5;
+  --lo-card-border: #f0cc50;
+  --lo-text: #3a2800;
+  --lo-text-secondary: #7a6030;
 }
 
 /* ------------------------------ Base ------------------------------ */
@@ -31,35 +34,36 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background-color: #0e0a18;
-  color: #f0e6f6;
+  background-color: var(--lo-bg);
+  color: var(--lo-text);
+}
+
+/* Ensure the root fills the yellow bg */
+#root {
+  background-color: var(--lo-bg);
 }
 
 select option {
-  background-color: #1e1430;
-  color: #f0e6f6;
+  background-color: var(--lo-panel);
+  color: var(--lo-text);
 }
 
 /* -------------------- Leaflet overrides ---------------- */
 .leaflet-container {
-  background-color: #0b0814;
+  background-color: #FFF9E0;
   font-family: inherit;
-}
-
-.leaflet-tile-pane {
-  filter: brightness(0.82) saturate(0.9) contrast(1.02);
 }
 
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   background-color: var(--lo-panel);
-  color: #f0e6f6;
+  color: var(--lo-text);
   border: 1px solid var(--lo-panel-border);
 }
 
 .leaflet-popup-content-wrapper {
   border-radius: 0.9rem;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
 }
 
 .leaflet-popup-content {
@@ -68,16 +72,16 @@ select option {
 }
 
 a.leaflet-popup-close-button {
-  color: #b8a0cc !important;
+  color: var(--lo-text-secondary) !important;
 }
 
 .leaflet-tooltip {
   background-color: var(--lo-panel);
-  color: #f0e6f6;
+  color: var(--lo-text);
   border: 1px solid var(--lo-panel-border);
   border-radius: 0.5rem;
   font-size: 11px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .leaflet-tooltip-top::before {
@@ -85,8 +89,8 @@ a.leaflet-popup-close-button {
 }
 
 .leaflet-control-attribution {
-  background: rgba(26, 16, 40, 0.8) !important;
-  color: #8a7098 !important;
+  background: rgba(255, 232, 117, 0.7) !important;
+  color: var(--lo-text-secondary) !important;
   font-size: 10px !important;
 }
 
@@ -132,8 +136,8 @@ a.leaflet-popup-close-button {
   margin-top: -2px;
   padding: 1px 5px;
   border-radius: 9999px;
-  background-color: rgba(14, 10, 24, 0.9);
-  color: #f0e6f6;
+  background-color: var(--lo-panel);
+  color: var(--lo-text);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -169,8 +173,8 @@ a.leaflet-popup-close-button {
   inset: 4px;
   border-radius: 9999px;
   background: var(--lo-pink);
-  border: 2px solid #0e0a18;
-  box-shadow: 0 0 0 2px rgba(255, 105, 180, 0.35);
+  border: 2px solid var(--lo-bg);
+  box-shadow: 0 0 0 2px rgba(255, 102, 161, 0.35);
 }
 
 .lo-me__halo {
@@ -187,9 +191,9 @@ a.leaflet-popup-close-button {
   white-space: nowrap;
   padding: 1px 6px;
   border-radius: 9999px;
-  background-color: rgba(14, 10, 24, 0.92);
-  border: 1px solid rgba(255, 105, 180, 0.55);
-  color: var(--lo-pink-soft);
+  background-color: var(--lo-panel);
+  border: 1px solid rgba(255, 102, 161, 0.4);
+  color: var(--lo-pink);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -210,13 +214,13 @@ a.leaflet-popup-close-button {
   padding: 5px 11px 5px 9px;
   border-radius: 9999px;
   border: 1.5px solid rgba(255, 105, 180, 0.7);
-  background: linear-gradient(180deg, var(--lo-pink), #d4509a);
-  color: #fff;
+  background: linear-gradient(180deg, var(--lo-pink), #e05090);
+  color: #ffffff;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.03em;
   white-space: nowrap;
-  box-shadow: 0 8px 20px rgba(14, 10, 24, 0.6);
+  box-shadow: 0 8px 20px rgba(255, 102, 161, 0.3);
   transform-origin: 50% 120%;
   animation: lo-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: pointer;
@@ -241,12 +245,12 @@ a.leaflet-popup-close-button {
 }
 
 .lo-poke--sent {
-  background: linear-gradient(180deg, var(--lo-sky), #5ab0d8);
-  border-color: rgba(135, 206, 235, 0.8);
+  background: linear-gradient(180deg, var(--lo-sky), #40c8e8);
+  border-color: rgba(92, 225, 255, 0.8);
 }
 
 .lo-poke--sent::after {
-  border-top-color: #5ab0d8;
+  border-top-color: #40c8e8;
 }
 
 @keyframes lo-pop {
@@ -266,7 +270,7 @@ a.leaflet-popup-close-button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3a2a50;
+  background: #f0d4e4;
   border-radius: 8px;
 }
 
@@ -293,8 +297,8 @@ a.leaflet-popup-close-button {
   padding: 0 18px;
   margin-left: -10px;
   border: none;
-  background: #241a35;
-  color: #b8a0cc;
+  background: var(--lo-card);
+  color: var(--lo-text-secondary);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -308,8 +312,8 @@ a.leaflet-popup-close-button {
 }
 
 .chrome-tab:hover {
-  background: #2e2045;
-  color: #f0e6f6;
+  background: var(--lo-card-border);
+  color: var(--lo-text);
 }
 
 .chrome-tab[aria-selected='true'] {
@@ -365,7 +369,7 @@ a.leaflet-popup-close-button {
   border-radius: 0.75rem;
   border: 1px solid var(--lo-card-border);
   background: var(--lo-panel);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
 }
 
 .lo-kebab-item {
@@ -377,12 +381,12 @@ a.leaflet-popup-close-button {
   font-size: 12px;
   font-weight: 600;
   text-align: left;
-  color: #d8c8e8;
+  color: var(--lo-text);
   transition: background 0.12s;
 }
 
 .lo-kebab-item:hover {
-  background: rgba(255, 105, 180, 0.1);
+  background: rgba(255, 102, 161, 0.08);
 }
 
 .lo-kebab-item--danger {
@@ -391,4 +395,16 @@ a.leaflet-popup-close-button {
 
 .lo-kebab-item--danger:hover {
   background: rgba(248, 113, 113, 0.1);
+}
+
+/* ---- About Us slide-up animation ---- */
+@keyframes slide-up {
+  0% { opacity: 0; max-height: 0; transform: translateY(16px); }
+  100% { opacity: 1; max-height: 600px; transform: translateY(0); }
+}
+
+.lo-about-slide {
+  animation: slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  overflow: hidden;
+  transform-origin: bottom center;
 }

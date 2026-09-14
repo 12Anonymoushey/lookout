@@ -22,7 +22,7 @@ export function KebabMenu({ items = [] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg p-1 text-[#8a7098] transition hover:bg-[#3a2a50] hover:text-[#d8c8e8]"
+        className="rounded-lg p-1 text-[var(--lo-text-secondary)] transition hover:bg-[var(--lo-card-border)] hover:text-[var(--lo-text)]"
         aria-label="More actions"
       >
         <MoreVertical size={15} />
@@ -71,7 +71,7 @@ export function SearchSortBar({
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 rounded-xl border border-[var(--lo-card-border)] bg-[#1e1430] px-3 py-2 text-xs text-[#f0e6f6] placeholder:text-[#6a5a7a] focus:border-[var(--lo-pink)] focus:outline-none focus:ring-1 focus:ring-[#FF69B4]/25"
+        className="flex-1 rounded-xl border border-[var(--lo-card-border)] bg-[var(--lo-card)] px-3 py-2 text-xs text-[var(--lo-text)] placeholder:text-[var(--lo-text-secondary)] focus:border-[var(--lo-pink)] focus:outline-none focus:ring-1 focus:ring-[#FF69B4]/25"
       />
       {fields.length > 0 && (
         <button
@@ -84,7 +84,7 @@ export function SearchSortBar({
             }
             setFieldIdx((i) => (i + 1) % fields.length);
           }}
-          className="flex items-center gap-1 rounded-xl border border-[var(--lo-card-border)] bg-[#1e1430] px-2.5 py-2 text-[10px] font-bold text-[#d8c8e8] transition hover:border-[var(--lo-pink)]/50"
+          className="flex items-center gap-1 rounded-xl border border-[var(--lo-card-border)] bg-[var(--lo-card)] px-2.5 py-2 text-[10px] font-bold text-[var(--lo-text)] transition hover:border-[var(--lo-pink)]/50"
           title={`Sort by ${currentField}`}
         >
           <ArrowUpDown size={12} />
