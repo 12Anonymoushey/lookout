@@ -51,6 +51,10 @@ npm run dev
 # Or run them in two terminals:
 npm run server   # terminal 1 — backend
 npm run client   # terminal 2 — frontend
+
+# 💡 The backend is ALREADY live on Render at https://lookout-p8fw.onrender.com
+#    -> run ONLY `npm run client` and the app talks to Render; no local server
+#       needs to run at all. See "Configuration" below.
 ```
 
 Then open **two browser windows side by side**:
@@ -99,8 +103,11 @@ The frontend resolves its backend URL in this order:
 1. `VITE_BACKEND_URL` build-time env var — set it in the Cloudflare Pages
    dashboard (Production **and** Preview environments), or in
    `frontend/.env.local` for local development.
-2. Fallback: the deployed Render instance (`https://lookout-p8fw.onrender.com`),
-   so the pushed repo works out of the box in production.
+2. Fallback: the deployed Render instance at `https://lookout-p8fw.onrender.com`
+   (verified live — HTTP 200), so the app works against Render out of the box with
+   zero configuration. To make that choice explicit during local development,
+   create `frontend/.env.local` containing
+   `VITE_BACKEND_URL=https://lookout-p8fw.onrender.com`.
 
 Trailing slashes are stripped automatically (`https://host/` behaves exactly
 like `https://host`) — a stray slash would otherwise produce `//api/routes`
@@ -110,7 +117,7 @@ For fully-local development point it back at your machine:
 
 ```bash
 cp backend/.env.example backend/.env            # optional: PORT=4000
-cp frontend/.env.example frontend/.env.local    # VITE_BACKEND_URL=http://localhost:4000
+cp frontend/.env.example frontend/.env.local    # see the file — Render-first by default
 ```
 
 ## Production Build
@@ -124,7 +131,13 @@ npm run preview    # serve the production bundle locally
 
 ### Backend — Render
 
-1. Push this repo to GitHub → Render **New → Web Service** → connect the repo.
+> ✅ **Already deployed:** this repo's backend runs at
+> `https://lookout-p8fw.onrender.com` (health probe returns HTTP 200). It's a
+> free instance, so it sleeps after ~15 min of idle traffic — the first request
+> after a nap takes up to ~60 s while it boots. Any `git push` to `main`
+> auto-redeploys the service.
+
+1. (First time only) Push this repo to GitHub → Render **New → Web Service** → connect the repo.
 2. Settings:
    - **Root Directory:** `backend`
    - **Build Command:** `npm install` (or `npm run build` — a safe no-op echo)
@@ -150,8 +163,10 @@ No Google Maps keys, no credit cards — OSM tiles + open-source only.
 
 ## Defense Tips & Troubleshooting
 
-- **"Cannot reach backend" banner** → backend isn't running on port 4000;
-  run `npm run server` first.
+- **"Cannot reach backend" banner** → the Render free instance was sleeping (or
+  is cold-booting right after a deploy); hit **Retry** and give it up to ~60 s.
+  For local-only development you can still run `npm run server` and point
+  `VITE_BACKEND_URL` at `http://localhost:4000`.
 - **GPS denied in class** → use the built-in **Simulate GPS Movement** mode.
 - **Port already in use** → change `PORT` in `backend/.env`, restart.
 - **Map tiles blank offline** → OSM tiles need internet; data layer works offline.

@@ -273,11 +273,17 @@ setInterval(() => {
 }, SWEEP_INTERVAL_MS).unref();
 
 httpServer.listen(PORT, () => {
+  // Render injects RENDER_EXTERNAL_URL (https://<app>.onrender.com); outside
+  // Render we stay friendly and print the localhost address instead.
+  const base =
+    process.env.RENDER_EXTERNAL_URL ||
+    (process.env.RENDER === 'true' ? 'https://<your-app>.onrender.com' : `http://localhost:${PORT}`);
+  const ws = base.replace(/^http/, 'ws');
   console.log('--------------------------------------------------');
   console.log('  Look Out! realtime server is running');
-  console.log(`  ROOT : http://localhost:${PORT}/  (health probe)`);
-  console.log(`  REST : http://localhost:${PORT}/api/routes`);
-  console.log(`  WS   : ws://localhost:${PORT}  (Socket.IO)`);
+  console.log(`  ROOT : ${base}/  (health probe)`);
+  console.log(`  REST : ${base}/api/routes`);
+  console.log(`  WS   : ${ws}  (Socket.IO)`);
   console.log('--------------------------------------------------');
 });
 
