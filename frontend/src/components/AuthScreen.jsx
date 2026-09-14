@@ -89,95 +89,101 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-dvh" style={{ background: 'linear-gradient(135deg, #FFE875 0%, #FFFAEB 50%, #FFE875 100%)' }}>
-      {/* ====================== AUTH CARD ====================== */}
-      <div className="flex items-start justify-center px-4 pt-6 pb-4 sm:px-8 lg:items-center lg:min-h-dvh lg:py-12">
-        <div className="w-full max-w-md">
-          {/* Logo header */}
-          <div className="mb-5 flex items-center justify-center gap-3">
-            <img src={logoImg} alt="Look Out!" className="h-14 w-14 rounded-2xl object-cover shadow-lg" />
-            <div>
-              <h1 className="text-2xl font-black tracking-tight" style={{ color: 'var(--lo-text)' }}>
-                Look Out<span style={{ color: 'var(--lo-pink)' }}>!</span>
-              </h1>
-              <p className="text-xs" style={{ color: 'var(--lo-text-secondary)' }}>Real-time PUV tracking</p>
+    <div className="min-h-dvh w-full overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #FFE875 0%, #FFFAEB 50%, #FFE875 100%)' }}>
+      <div className="flex min-h-dvh items-center justify-center px-4 py-6 sm:px-8 lg:py-12">
+        
+        {/* Responsive Grid: Stacks on mobile (grid-cols-1), side-by-side on desktop (lg:grid-cols-2) */}
+        <div className="grid w-full max-w-md grid-cols-1 gap-6 lg:max-w-5xl lg:grid-cols-2 lg:gap-8 lg:items-center">
+          
+          {/* ================= LEFT COLUMN: AUTH CARD ================= */}
+          <div className="w-full">
+            {/* Logo header */}
+            <div className="mb-5 flex items-center justify-center gap-3 lg:justify-start">
+              <img src={logoImg} alt="Look Out!" className="h-12 w-12 rounded-2xl object-cover shadow-lg sm:h-14 sm:w-14" />
+              <div>
+                <h1 className="text-2xl font-black tracking-tight" style={{ color: 'var(--lo-text)' }}>
+                  Look Out<span style={{ color: 'var(--lo-pink)' }}>!</span>
+                </h1>
+                <p className="text-xs" style={{ color: 'var(--lo-text-secondary)' }}>Real-time PUV tracking</p>
+              </div>
+            </div>
+
+            {/* Chrome tabs */}
+            <div className="chrome-tabs" role="tablist" aria-label="Choose account type">
+              {AUTH_TABS.map((entry) => {
+                const Icon = entry.id === 'driver' ? Bus : Users;
+                const selected = role === entry.id;
+                return (
+                  <button key={entry.id} type="button" role="tab" aria-selected={selected} onClick={() => switchTab(entry.id)} className="chrome-tab">
+                    <Icon size={15} />{entry.label}
+                    <span className="chrome-tab__hint">{isSignup ? 'signup' : 'login'}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Form panel */}
+            <div role="tabpanel" className="rounded-b-2xl rounded-tr-2xl border border-[var(--lo-panel-border)] bg-[var(--lo-panel)] p-4 shadow-xl sm:p-6">
+              <header className="mb-5">
+                <h2 className="text-lg font-extrabold tracking-tight" style={{ color: 'var(--lo-text)' }}>
+                  {isSignup ? `Sign up as ${meta.label}` : `${meta.label} login`}
+                </h2>
+                {!isSignup && <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{meta.blurb}</p>}
+              </header>
+
+              {firebaseMissing && (
+                <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-700">
+                  <p className="flex items-center gap-1.5 font-bold"><AlertTriangle size={13} /> Firebase not configured</p>
+                  <button type="button" onClick={() => enterDemo(role)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1.5 font-bold transition hover:bg-amber-200">
+                    <Radio size={12} /> Continue in demo mode
+                  </button>
+                </div>
+              )}
+
+              {banner && (
+                <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2.5 text-xs text-rose-700">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" /><p>{banner}</p>
+                </div>
+              )}
+
+              <form onSubmit={onSubmit} noValidate className="space-y-3.5">
+                {isSignup && <Field icon={User} label="Full name" error={errors.fullName} value={form.fullName} onChange={set('fullName')} placeholder="Juan Dela Cruz" autoComplete="name" />}
+                <Field icon={Mail} label="Email" error={errors.email} value={form.email} onChange={set('email')} placeholder="you@example.com" type="email" autoComplete="email" />
+                {isSignup && <Field icon={Phone} label="Mobile number" error={errors.phone} value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: normalizePhone(e.target.value) }))} placeholder="09171234567" inputMode="tel" autoComplete="tel" />}
+                {isSignup && role === 'driver' && <Field icon={CreditCard} label="Primary plate number" error={errors.plate} value={form.plate} onChange={(e) => setForm((p) => ({ ...p, plate: normalizePlate(e.target.value) }))} placeholder="BMS 1930" />}
+                <Field icon={Lock} label="Password" error={errors.password} value={form.password} onChange={set('password')} placeholder="At least 6 characters" type={showPassword ? 'text' : 'password'} autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  trailing={<button type="button" onClick={() => setShowPassword((v) => !v)} className="rounded-md p-1 transition" style={{ color: 'var(--lo-text-secondary)' }}>{showPassword ? <EyeOff size={14} /> : <Eye size={14} />}</button>} />
+                {isSignup && <Field icon={ShieldCheck} label="Confirm password" error={errors.confirm} value={form.confirm} onChange={set('confirm')} placeholder="Retype your password" type={showPassword ? 'text' : 'password'} autoComplete="new-password"
+                  trailing={form.confirm.length > 0 && (
+                    <span className={`flex items-center gap-1 text-[10px] font-bold ${passwordMatches ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {passwordMatches ? <Check size={12} /> : <X size={12} />} {passwordMatches ? 'match' : 'differ'}
+                    </span>
+                  )} />}
+
+                <button type="submit" disabled={busy} className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, var(--lo-pink), #e05090)', boxShadow: '0 4px 14px rgba(255,102,161,0.35)' }}>
+                  {busy ? <><Loader2 size={16} className="animate-spin" /> Working…</> : <>{isSignup ? `Create ${meta.label} account` : `Log in as ${meta.label}`} <ArrowRight size={16} /></>}
+                </button>
+              </form>
+
+              <p className="mt-5 text-center text-xs" style={{ color: 'var(--lo-text-secondary)' }}>
+                {isSignup ? (
+                  <>Already on Look Out!? <button type="button" onClick={() => switchMode('login')} className="font-bold underline decoration-dotted underline-offset-4 transition" style={{ color: 'var(--lo-pink)' }}>Log in instead</button></>
+                ) : (
+                  <>New to Look Out!? <button type="button" onClick={() => switchMode('signup')} className="font-bold underline decoration-dotted underline-offset-4 transition" style={{ color: 'var(--lo-pink)' }}>Sign up to be on Look Out!</button></>
+                )}
+              </p>
             </div>
           </div>
 
-          {/* Chrome tabs */}
-          <div className="chrome-tabs" role="tablist" aria-label="Choose account type">
-            {AUTH_TABS.map((entry) => {
-              const Icon = entry.id === 'driver' ? Bus : Users;
-              const selected = role === entry.id;
-              return (
-                <button key={entry.id} type="button" role="tab" aria-selected={selected} onClick={() => switchTab(entry.id)} className="chrome-tab">
-                  <Icon size={15} />{entry.label}
-                  <span className="chrome-tab__hint">{isSignup ? 'signup' : 'login'}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div role="tabpanel" className="rounded-b-2xl rounded-tr-2xl border border-[var(--lo-panel-border)] bg-[var(--lo-panel)] p-5 shadow-xl sm:p-6">
-            <header className="mb-5">
-              <h2 className="text-lg font-extrabold tracking-tight" style={{ color: 'var(--lo-text)' }}>
-                {isSignup ? `Sign up as ${meta.label}` : `${meta.label} login`}
-              </h2>
-              {!isSignup && <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{meta.blurb}</p>}
-            </header>
-
-            {firebaseMissing && (
-              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-700">
-                <p className="flex items-center gap-1.5 font-bold"><AlertTriangle size={13} /> Firebase not configured</p>
-                <button type="button" onClick={() => enterDemo(role)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1.5 font-bold transition hover:bg-amber-200">
-                  <Radio size={12} /> Continue in demo mode
-                </button>
-              </div>
-            )}
-
-            {banner && (
-              <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2.5 text-xs text-rose-700">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0" /><p>{banner}</p>
-              </div>
-            )}
-
-            <form onSubmit={onSubmit} noValidate className="space-y-3.5">
-              {isSignup && <Field icon={User} label="Full name" error={errors.fullName} value={form.fullName} onChange={set('fullName')} placeholder="Juan Dela Cruz" autoComplete="name" />}
-              <Field icon={Mail} label="Email" error={errors.email} value={form.email} onChange={set('email')} placeholder="you@example.com" type="email" autoComplete="email" />
-              {isSignup && <Field icon={Phone} label="Mobile number" error={errors.phone} value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: normalizePhone(e.target.value) }))} placeholder="09171234567" inputMode="tel" autoComplete="tel" />}
-              {isSignup && role === 'driver' && <Field icon={CreditCard} label="Primary plate number" error={errors.plate} value={form.plate} onChange={(e) => setForm((p) => ({ ...p, plate: normalizePlate(e.target.value) }))} placeholder="BMS 1930" />}
-              <Field icon={Lock} label="Password" error={errors.password} value={form.password} onChange={set('password')} placeholder="At least 6 characters" type={showPassword ? 'text' : 'password'} autoComplete={isSignup ? 'new-password' : 'current-password'}
-                trailing={<button type="button" onClick={() => setShowPassword((v) => !v)} className="rounded-md p-1 transition" style={{ color: 'var(--lo-text-secondary)' }}>{showPassword ? <EyeOff size={14} /> : <Eye size={14} />}</button>} />
-              {isSignup && <Field icon={ShieldCheck} label="Confirm password" error={errors.confirm} value={form.confirm} onChange={set('confirm')} placeholder="Retype your password" type={showPassword ? 'text' : 'password'} autoComplete="new-password"
-                trailing={form.confirm.length > 0 && (
-                  <span className={`flex items-center gap-1 text-[10px] font-bold ${passwordMatches ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {passwordMatches ? <Check size={12} /> : <X size={12} />} {passwordMatches ? 'match' : 'differ'}
-                  </span>
-                )} />}
-
-              <button type="submit" disabled={busy} className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, var(--lo-pink), #e05090)', boxShadow: '0 4px 14px rgba(255,102,161,0.35)' }}>
-                {busy ? <><Loader2 size={16} className="animate-spin" /> Working…</> : <>{isSignup ? `Create ${meta.label} account` : `Log in as ${meta.label}`} <ArrowRight size={16} /></>}
-              </button>
-            </form>
-
-            <p className="mt-5 text-center text-xs" style={{ color: 'var(--lo-text-secondary)' }}>
-              {isSignup ? (
-                <>Already on Look Out!? <button type="button" onClick={() => switchMode('login')} className="font-bold underline decoration-dotted underline-offset-4 transition" style={{ color: 'var(--lo-pink)' }}>Log in instead</button></>
-              ) : (
-                <>New to Look Out!? <button type="button" onClick={() => switchMode('signup')} className="font-bold underline decoration-dotted underline-offset-4 transition" style={{ color: 'var(--lo-pink)' }}>Sign up to be on Look Out!</button></>
-              )}
-            </p>
-          </div>
-
-          {/* ====================== BANNER BELOW LOGIN (mobile + desktop) ====================== */}
-          <div className="mt-6 rounded-2xl border shadow-lg" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
+          {/* ================= RIGHT COLUMN: BANNER / ABOUT ================= */}
+          <div className="w-full rounded-2xl border shadow-lg" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
             {/* Collapsible on mobile — slides upward */}
             <button type="button" onClick={() => setAboutOpen((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 lg:hidden">
               <span className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>About Look Out!</span>
               <ArrowUp size={16} className="transition-transform duration-300" style={{ color: 'var(--lo-text-secondary)', transform: aboutOpen ? 'rotate(0deg)' : 'rotate(180deg)' }} />
             </button>
-            <div className={aboutOpen ? 'lo-about-slide' : 'hidden'} style={{ maxHeight: aboutOpen ? 600 : 0 }}>
+            <div className={aboutOpen ? 'lo-about-slide block' : 'hidden lg:hidden'} style={{ maxHeight: aboutOpen ? 600 : 0 }}>
               <MobileAbout />
             </div>
 
@@ -186,6 +192,7 @@ export default function AuthScreen() {
               <DesktopAbout />
             </div>
           </div>
+
         </div>
       </div>
     </div>
