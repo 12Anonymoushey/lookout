@@ -1,7 +1,7 @@
 /**
  * Look Out! — vehicle presentation helpers.
  *
- * A jeepney is either FULL (red) or STILL VACANT (blue). Availability wins over
+ * A jeepney is either FULL (red) or STILL VACANT (emerald). Availability wins over
  * the route colour for the vehicle body, while the route colour keeps driving
  * the pulse ring + label so commuters can still tell routes apart.
  */
@@ -11,15 +11,15 @@ export const STATUS = {
     id: 'full',
     label: 'Full',
     long: 'Full — no more seats',
-    color: '#ef4444',
+    color: '#EF4444',
     soft: 'rgba(239,68,68,0.16)',
   },
   vacant: {
     id: 'vacant',
     label: 'Still Vacant',
     long: 'Still vacant — may pick up passengers',
-    color: '#3b82f6',
-    soft: 'rgba(59,130,246,0.16)',
+    color: '#10B981',
+    soft: 'rgba(16,185,129,0.12)',
   },
 };
 

@@ -9,7 +9,7 @@ const sanitizeLabel = (value) =>
   String(value ?? '').replace(/[&<>"'/\\]/g, '').trim().slice(0, 12) || 'PUV';
 
 export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idle' }) {
-  const routeColor = route?.color || '#FF69B4';
+  const routeColor = route?.color || '#2563EB';
   const meta = statusMeta(vehicle);
   const body = statusColor(vehicle);
 
@@ -21,13 +21,13 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
         <span class="lo-marker__ring"></span>
         <div class="lo-marker__body" style="transform: rotate(${heading}deg)">
           <svg width="30" height="30" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-            <rect x="7" y="3" width="18" height="26" rx="5" fill="${body}" stroke="#0e0a18" stroke-width="2"/>
-            <rect x="10" y="7" width="12" height="6" rx="1.5" fill="#0e0a18" opacity="0.85"/>
-            <rect x="10.5" y="19" width="11" height="3" rx="1.5" fill="#0e0a18" opacity="0.55"/>
-            <circle cx="5.5" cy="10" r="2.2" fill="#0e0a18"/>
-            <circle cx="26.5" cy="10" r="2.2" fill="#0e0a18"/>
-            <circle cx="5.5" cy="22" r="2.2" fill="#0e0a18"/>
-            <circle cx="26.5" cy="22" r="2.2" fill="#0e0a18"/>
+            <rect x="7" y="3" width="18" height="26" rx="5" fill="${body}" stroke="#0F172A" stroke-width="2"/>
+            <rect x="10" y="7" width="12" height="6" rx="1.5" fill="#0F172A" opacity="0.85"/>
+            <rect x="10.5" y="19" width="11" height="3" rx="1.5" fill="#0F172A" opacity="0.55"/>
+            <circle cx="5.5" cy="10" r="2.2" fill="#0F172A"/>
+            <circle cx="26.5" cy="10" r="2.2" fill="#0F172A"/>
+            <circle cx="5.5" cy="22" r="2.2" fill="#0F172A"/>
+            <circle cx="26.5" cy="22" r="2.2" fill="#0F172A"/>
           </svg>
         </div>
         <span class="lo-marker__label" style="box-shadow: inset 0 0 0 1px ${meta.color}">${label}</span>
@@ -59,31 +59,31 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
           <div className="flex items-center justify-between gap-2">
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold"
-              style={{ backgroundColor: `${routeColor}26`, color: routeColor }}
+              style={{ backgroundColor: `${routeColor}26`, color: 'var(--lo-text)' }}
             >
               <Bus size={12} /> {vehicle.vehicleId}
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--lo-pink)' }}>● Live</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--lo-text)' }}>● Live</span>
           </div>
 
-          <p className="text-sm font-semibold text-[var(--lo-text)]">{route?.name ?? 'Unknown route'}</p>
+          <p className="text-sm font-semibold text-slate-900">{route?.name ?? 'Unknown route'}</p>
 
           <p
             className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold"
-            style={{ backgroundColor: meta.soft, color: meta.color }}
+            style={{ backgroundColor: meta.soft, color: 'var(--lo-text)' }}
           >
             <Users size={12} /> {meta.long}
           </p>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-            <dt className="text-[var(--lo-text-secondary)]">Speed</dt>
-            <dd className="text-right font-mono text-[var(--lo-text)]">{(Number(vehicle.speed) || 0).toFixed(1)} km/h</dd>
-            <dt className="text-[var(--lo-text-secondary)]">Next stop</dt>
-            <dd className="truncate text-right text-[var(--lo-text)]">{nextInfo?.stop.name ?? '—'}</dd>
-            <dt className="text-[var(--lo-text-secondary)]">Distance</dt>
-            <dd className="text-right text-[var(--lo-text)]">{formatKm(nextInfo?.km)}</dd>
-            <dt className="text-[var(--lo-text-secondary)]">ETA</dt>
-            <dd className="text-right font-bold" style={{ color: 'var(--lo-pink)' }}>{formatEta(nextInfo?.etaMin)}</dd>
+            <dt className="text-slate-500">Speed</dt>
+            <dd className="text-right font-mono text-slate-900">{(Number(vehicle.speed) || 0).toFixed(1)} km/h</dd>
+            <dt className="text-slate-500">Next stop</dt>
+            <dd className="truncate text-right text-slate-900">{nextInfo?.stop.name ?? '—'}</dd>
+            <dt className="text-slate-500">Distance</dt>
+            <dd className="text-right text-slate-900">{formatKm(nextInfo?.km)}</dd>
+            <dt className="text-slate-500">ETA</dt>
+            <dd className="text-right font-bold" style={{ color: 'var(--lo-primary)' }}>{formatEta(nextInfo?.etaMin)}</dd>
           </dl>
 
           {onPoke && (
@@ -91,12 +91,7 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
               type="button"
               onClick={() => onPoke(vehicle)}
               disabled={pokeState !== 'idle'}
-              className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${
-                pokeState === 'sent'
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : 'text-white hover:opacity-90'
-              } disabled:cursor-default`}
-              style={pokeState !== 'sent' ? { background: 'var(--lo-pink)' } : undefined}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-900 transition hover:brightness-95 disabled:cursor-default"
             >
               {pokeState === 'sending' && <Loader2 size={13} className="animate-spin" />}
               {pokeState === 'sent' && <Check size={13} />}
@@ -105,7 +100,7 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
             </button>
           )}
 
-          <p className="text-[10px] text-[var(--lo-text-secondary)]">
+          <p className="text-[10px] text-slate-500">
             Last fix: {new Date(vehicle.updatedAt).toLocaleTimeString()}
           </p>
         </div>

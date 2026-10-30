@@ -3,6 +3,7 @@ import { MapContainer, Polyline, TileLayer } from 'react-leaflet';
 import {
   AlertTriangle,
   Banknote,
+  Bus,
   Check,
   ChevronDown,
   Clock,
@@ -42,7 +43,7 @@ const TICK_MS = 3000;
 const fmtCoord = (n) => (n == null || !Number.isFinite(n) ? '—' : Number(n).toFixed(6));
 const fmtDuration = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
-export default function DriverView({ routes, connected, drawerOpen, onCloseDrawer, collapsed, onToggleCollapse }) {
+export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer, onCloseDrawer, collapsed, onToggleCollapse }) {
   const { profile, plates, activePlate, setPlates, setActivePlate, updateDetails } = useAuth();
 
   const [routeId, setRouteId] = useState('');
@@ -58,6 +59,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
   const [follow, setFollow] = useState(true);
   const [full, setFull] = useState(false);
   const [toast, setToast] = useState('');
+  const [pokesOpen, setPokesOpen] = useState(false);
 
   // Edit My Details
   const [editingDetails, setEditingDetails] = useState(false);
@@ -281,10 +283,10 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
   };
 
   const gpsBadge = {
-    idle: { icon: Satellite, spin: false, text: 'GPS idle', cls: 'text-[var(--lo-text-secondary)]' },
-    acquiring: { icon: Loader2, spin: true, text: 'Acquiring…', cls: 'text-amber-600' },
-    locked: { icon: Satellite, spin: false, text: accuracy ? `GPS ±${Math.round(accuracy)}m` : 'GPS locked', cls: 'text-emerald-600' },
-    denied: { icon: X, spin: false, text: 'GPS unavailable', cls: 'text-rose-500' },
+    idle: { icon: Satellite, spin: false, text: 'GPS idle', cls: 'text-slate-500' },
+    acquiring: { icon: Loader2, spin: true, text: 'Acquiring…', cls: 'text-slate-900' },
+    locked: { icon: Satellite, spin: false, text: accuracy ? `GPS ±${Math.round(accuracy)}m` : 'GPS locked', cls: 'text-slate-900' },
+    denied: { icon: X, spin: false, text: 'GPS unavailable', cls: 'text-slate-900' },
   }[gpsStatus];
 
   /* ---- Edit My Details ---- */
@@ -338,7 +340,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
   const panel = (
     <>
       {/* Tab 1: My Details (editable) */}
-      <Section icon={UserRound} title="My Details" tint="pink">
+      <Section icon={UserRound} title="My Details" tint="primary">
         <InfoRow label="Name" value={profile?.fullName} />
         <InfoRow label="Email" value={profile?.email} />
         <InfoRow label="Mobile" value={profile?.phone || '—'} />
@@ -346,27 +348,29 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <span className="text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>Trip</span>
           <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
-            style={{ borderColor: isLive ? 'rgba(16,185,129,0.4)' : 'var(--lo-card-border)', background: isLive ? 'rgba(16,185,129,0.1)' : 'var(--lo-card)', color: isLive ? '#059669' : 'var(--lo-text-secondary)' }}>
+            style={{ borderColor: isLive ? 'var(--lo-success)' : 'var(--lo-card-border)', background: isLive ? 'var(--lo-success)' : 'var(--lo-card)', color: isLive ? 'var(--lo-text)' : 'var(--lo-text-secondary)' }}>
             {isLive && <PulseDot color="emerald" />}{isLive ? 'On air' : 'Offline'}
           </span>
         </div>
         <button type="button" onClick={openDetailEditor}
           className="flex w-full items-center justify-center gap-1.5 rounded-xl border py-2 text-[11px] font-bold transition hover:opacity-80"
-          style={{ borderColor: 'var(--lo-pink)', color: 'var(--lo-pink)' }}>
+          style={{ borderColor: 'var(--lo-primary)', color: 'var(--lo-primary)' }}>
           <Pencil size={12} /> Edit Details
         </button>
       </Section>
 
-      <PlateManager plates={plates} activePlate={activePlate} onSelect={setActivePlate} onChange={setPlates} disabled={isLive} />
+      <Section id="driver-vehicles" icon={Bus} title="My Vehicles" tint="primary">
+        <PlateManager plates={plates} activePlate={activePlate} onSelect={setActivePlate} onChange={setPlates} disabled={isLive} />
+      </Section>
 
       {/* Tab 2: Start Ride */}
-      <Section icon={Play} title="Start Ride" tint="cyan">
-        {!connected && <p className="rounded-xl border px-2.5 py-2 text-[10px]" style={{ borderColor: '#f59e0b40', background: '#f59e0b10', color: '#b45309' }}>Backend not connected.</p>}
+      <Section id="driver-start-ride" icon={Play} title="Start Ride" tint="primary">
+        {!connected && <p className="rounded-xl border px-2.5 py-2 text-[10px]" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-bg)', color: 'var(--lo-text)' }}>Backend not connected.</p>}
         <label className="block">
           <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>Route</span>
           <span className="relative block">
             <select value={routeId} onChange={(e) => setRouteId(e.target.value)} disabled={isLive || routes.length === 0}
-              className="w-full appearance-none rounded-xl border px-3 py-2 pr-8 text-xs focus:border-[var(--lo-pink)] focus:outline-none focus:ring-2 disabled:opacity-50"
+              className="w-full appearance-none rounded-xl border px-3 py-2 pr-8 text-xs focus:border-blue-600 focus:outline-none focus:ring-2 disabled:opacity-50"
               style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }}>
               {routes.length === 0 && <option value="">Loading routes…</option>}
               {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -375,16 +379,16 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
           </span>
         </label>
         <button type="button" onClick={isLive ? endTrip : beginTrip}
-          className={`flex h-10 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold shadow-lg transition ${isLive ? 'bg-rose-500 text-white hover:bg-rose-400' : 'bg-emerald-500 text-white hover:bg-emerald-400'}`}>
+          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold shadow-lg transition hover:brightness-95 ${isLive ? 'bg-red-500 text-slate-900' : 'bg-emerald-500 text-slate-900'}`}>
           {isLive ? <><Square size={14} /> End Trip</> : <><Play size={14} /> Start Trip</>}
         </button>
         <button type="button" onClick={toggleSim}
           className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[11px] font-semibold transition"
-          style={{ borderColor: simEnabled ? 'var(--lo-pink)' : 'var(--lo-card-border)', background: simEnabled ? 'rgba(255,102,161,0.1)' : 'var(--lo-card)', color: 'var(--lo-text)' }}>
+          style={{ borderColor: simEnabled ? 'var(--lo-primary)' : 'var(--lo-card-border)', background: simEnabled ? 'rgba(37,99,235,0.1)' : 'var(--lo-card)', color: 'var(--lo-text)' }}>
           <Satellite size={13} /> {simEnabled ? 'GPS Sim ON' : 'GPS Simulator'}
         </button>
         {error && (
-          <p className="flex items-start gap-1.5 rounded-xl border px-2.5 py-2 text-[10px]" style={{ borderColor: '#ef444440', background: '#ef444410', color: '#dc2626' }}>
+          <p className="flex items-start gap-1.5 rounded-xl border px-2.5 py-2 text-[10px]" style={{ borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)', color: 'var(--lo-text)' }}>
             <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {error}
           </p>
         )}
@@ -397,7 +401,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
         <div className="grid grid-cols-3 gap-2">
           {[{ icon: Send, val: sentCount, lbl: 'sent' }, { icon: Clock, val: fmtDuration(elapsed), lbl: 'trip' }, { icon: gpsBadge.icon, val: gpsBadge.text, lbl: 'gps', cls: gpsBadge.cls, spin: gpsBadge.spin }].map((g, i) => (
             <div key={i} className="rounded-xl border p-2 text-center" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-              <g.icon size={12} className={`mx-auto mb-1 ${g.cls || ''} ${g.spin ? 'animate-spin' : ''}`} style={!g.cls ? { color: 'var(--lo-pink)' } : undefined} />
+              <g.icon size={12} className={`mx-auto mb-1 ${g.cls || ''} ${g.spin ? 'animate-spin' : ''}`} style={!g.cls ? { color: 'var(--lo-primary)' } : undefined} />
               <p className={`font-mono text-xs font-bold ${g.cls || ''}`} style={!g.cls ? { color: 'var(--lo-text)' } : undefined}>{g.val}</p>
               <p className="text-[8px] uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>{g.lbl}</p>
             </div>
@@ -406,7 +410,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
       </Section>
 
       {/* Tab 3: Trips */}
-      <Section icon={Clock} title="Trips" tint="cyan" defaultOpen={false}>
+      <Section id="driver-trips" icon={Clock} title="Trips" tint="primary" defaultOpen={false}>
         <SearchSortBar search={tripSearch} onSearchChange={setTripSearch} sortField={tripSort.field} sortDir={tripSort.dir}
           onSortToggle={(field, dir) => setTripSort({ field, dir })} fields={['vehicleId', 'routeName', 'startedAt']} placeholder="Search trips…" />
         {filteredTrips.length === 0 ? (
@@ -431,7 +435,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
                 </div>
                 <div className="mt-1.5 grid grid-cols-4 gap-1">
                   {[{ label: 'Revenue', val: `₱${t.revenue || 0}` }, { label: 'Income', val: `₱${t.income || 0}` }, { label: 'Gas', val: `₱${t.gas || 0}` }, { label: 'Others', val: `₱${t.others || 0}` }].map((f) => (
-                    <div key={f.label} className="rounded-lg px-1.5 py-1 text-center" style={{ background: 'rgba(255,102,161,0.05)' }}>
+                    <div key={f.label} className="rounded-lg px-1.5 py-1 text-center" style={{ background: 'rgba(37,99,235,0.05)' }}>
                       <p className="font-mono text-[10px] font-bold" style={{ color: 'var(--lo-text)' }}>{f.val}</p>
                       <p className="text-[8px] uppercase" style={{ color: 'var(--lo-text-secondary)' }}>{f.label}</p>
                     </div>
@@ -444,7 +448,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
       </Section>
 
       {/* Tab 4: Stats */}
-      <Section icon={Star} title="Stats" tint="yellow" defaultOpen={false}>
+      <Section icon={Star} title="Stats" tint="primary" defaultOpen={false}>
         {tripStats ? (
           <div className="space-y-1.5">
             <InfoRow label="Total trips" value={tripStats.total} />
@@ -452,8 +456,8 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
             <InfoRow label="Total income" value={`₱${tripStats.totalIncome}`} />
             <InfoRow label="Total gas" value={`₱${tripStats.totalGas}`} />
             <InfoRow label="Total others" value={`₱${tripStats.totalOthers}`} />
-            <div className="mt-1 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,102,161,0.08)' }}>
-              <InfoRow label="Net" value={<span className={`font-bold ${tripStats.net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>₱{tripStats.net}</span>} />
+            <div className="mt-1 rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.08)' }}>
+              <InfoRow label="Net" value={<span className={`font-bold ${tripStats.net >= 0 ? 'text-slate-900' : 'text-slate-900'}`}>₱{tripStats.net}</span>} />
             </div>
           </div>
         ) : (
@@ -461,15 +465,15 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
         )}
       </Section>
 
-      <Section icon={Users} title="Passenger Status" tint={full ? 'rose' : 'sky'}>
+      <Section id="driver-status" icon={Users} title="Passenger Status" tint={full ? 'critical' : 'success'}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setAvailability(false)} aria-pressed={!full}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition ${!full ? 'shadow-lg' : 'border hover:opacity-80'}`}
-            style={!full ? { background: 'var(--lo-sky)', color: 'var(--lo-text)' } : { borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>
+            style={!full ? { background: 'var(--lo-success)', color: 'var(--lo-text)' } : { borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>
             <Users size={14} /> Still Vacant
           </button>
           <button type="button" onClick={() => setAvailability(true)} aria-pressed={full}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition ${full ? 'bg-rose-500 text-white shadow-lg' : 'border hover:opacity-80'}`}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${full ? 'border border-red-500 bg-red-500 text-slate-900 shadow-lg' : 'border hover:opacity-80'}`}
             style={!full ? { borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' } : undefined}>
             <Users size={14} /> Full
           </button>
@@ -477,28 +481,27 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
       </Section>
 
       {/* Tab: Make Announcement */}
-      <Section icon={Megaphone} title="Make Announcement" tint="pink" defaultOpen={false}>
+      <Section icon={Megaphone} title="Make Announcement" tint="primary" defaultOpen={false}>
         <label className="block">
           <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Title</span>
           <input value={announceTitle} onChange={(e) => setAnnounceTitle(e.target.value)} placeholder="e.g. Route diversion today"
-            className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+            className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
             style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
         </label>
         <label className="block">
           <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Message</span>
           <textarea value={announceMessage} onChange={(e) => setAnnounceMessage(e.target.value)} placeholder="Details for commuters…" rows={3}
-            className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+            className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
             style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
         </label>
         <button type="button" onClick={submitAnnouncement} disabled={!announceTitle.trim() || !announceMessage.trim()}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold text-white transition hover:opacity-80 disabled:opacity-40"
-          style={{ background: 'var(--lo-pink)' }}>
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-40">
           <Megaphone size={13} /> Post Announcement
         </button>
       </Section>
 
       {/* Tab: My Announcements */}
-      <Section icon={Megaphone} title="My Announcements" tint="cyan" defaultOpen={false}>
+      <Section icon={Megaphone} title="My Announcements" tint="primary" defaultOpen={false}>
         {myAnnouncements.length === 0 ? (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
         ) : (
@@ -523,7 +526,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
       </Section>
 
       {/* Tab: All Announcements (driver sees all too) */}
-      <Section icon={Megaphone} title="All Announcements" tint="sky" defaultOpen={false}>
+      <Section icon={Megaphone} title="All Announcements" tint="success" defaultOpen={false}>
         {allAnnouncements.length === 0 ? (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements.</p>
         ) : (
@@ -541,9 +544,16 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
     </>
   );
 
+  const dockItems = [
+    { id: 'trip', label: 'Trip controls', icon: Play, target: 'driver-start-ride' },
+    { id: 'pokes', label: 'Poke alerts', icon: Hand, disabled: !activePlate, returnToMap: true, onSelect: () => setPokesOpen(true) },
+    { id: 'status', label: 'Passenger status', icon: Users, target: 'driver-status' },
+    { id: 'trips', label: 'Trip history', icon: Clock, target: 'driver-trips' },
+  ];
+
   /* ======================== MAP STAGE ======================== */
   return (
-    <AppShell brand="Driver" panel={panel} open={drawerOpen} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
+    <AppShell brand="Driver" panel={panel} dockItems={dockItems} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
       <section className="absolute inset-0">
         <MapContainer center={ILOILO_CENTER} zoom={13} className="h-full w-full" zoomControl={false} ref={miniMapRef}>
           <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -555,7 +565,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
 
         <div className="pointer-events-none absolute left-2 right-2 top-2 z-[1000] flex flex-wrap items-center gap-2 lg:left-3 lg:top-3">
           <div className="pointer-events-auto flex h-10 items-center gap-2 rounded-full border px-3 shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
-            <span className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${isLive ? 'text-emerald-600' : ''}`} style={!isLive ? { color: 'var(--lo-text-secondary)' } : undefined}>
+            <span className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${isLive ? 'text-slate-900' : ''}`} style={!isLive ? { color: 'var(--lo-text-secondary)' } : undefined}>
               {isLive ? <PulseDot color="emerald" /> : <Satellite size={12} />}{isLive ? 'On air' : 'Offline'}
             </span>
             <span className="h-4 w-px" style={{ background: 'var(--lo-card-border)' }} />
@@ -567,7 +577,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
         <div className="absolute right-2 top-2 z-[1000] lg:right-3 lg:top-3">
           <button type="button" onClick={() => setFollow((f) => !f)}
             className="flex h-10 items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold backdrop-blur transition"
-            style={{ borderColor: follow ? 'var(--lo-pink)' : 'var(--lo-card-border)', background: follow ? 'rgba(255,102,161,0.1)' : 'var(--lo-panel)', color: follow ? 'var(--lo-pink)' : 'var(--lo-text)' }}>
+            style={{ borderColor: follow ? 'var(--lo-primary)' : 'var(--lo-card-border)', background: follow ? 'var(--lo-bg)' : 'var(--lo-panel)', color: follow ? 'var(--lo-primary)' : 'var(--lo-text)' }}>
             <Crosshair size={13} /> {follow ? 'Following' : 'Free pan'}
           </button>
         </div>
@@ -575,7 +585,7 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
         {telemetry.lat == null && (
           <div className="pointer-events-none absolute inset-0 z-[900] flex items-center justify-center">
             <div className="rounded-2xl border px-5 py-4 text-center shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
-              <Satellite size={22} className="mx-auto mb-1.5 animate-pulse" style={{ color: 'var(--lo-pink)' }} />
+              <Satellite size={22} className="mx-auto mb-1.5 animate-pulse" style={{ color: 'var(--lo-primary)' }} />
               <p className="text-sm font-semibold" style={{ color: 'var(--lo-text)' }}>Waiting for GPS fix…</p>
               <p className="mt-0.5 text-xs" style={{ color: 'var(--lo-text-secondary)' }}>Start a trip from the panel.</p>
             </div>
@@ -583,16 +593,16 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
         )}
       </section>
 
-      <div className="pointer-events-none fixed bottom-7 right-2 z-[1200] flex flex-col items-end gap-2.5 sm:right-4 lg:bottom-8 lg:right-5">
-        <DriverPokes plate={activePlate} className="pointer-events-auto" />
+      <div className="pointer-events-none fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-2 z-[1200] flex flex-col items-end gap-2.5 sm:bottom-7 sm:right-4 lg:bottom-8 lg:right-5">
+        <DriverPokes plate={activePlate} open={pokesOpen} onOpenChange={setPokesOpen} className="pointer-events-auto" />
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border p-1.5 shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
           <button type="button" onClick={() => setAvailability(false)} aria-pressed={!full}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${!full ? 'shadow-lg' : 'hover:opacity-80'}`}
-            style={!full ? { background: 'var(--lo-sky)', color: 'var(--lo-text)' } : { color: 'var(--lo-text)' }}>
+            className={`flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${!full ? 'shadow-lg' : 'hover:opacity-80'}`}
+            style={!full ? { background: 'var(--lo-success)', color: 'var(--lo-text)' } : { color: 'var(--lo-text)' }}>
             <Users size={14} /> Still Vacant
           </button>
           <button type="button" onClick={() => setAvailability(true)} aria-pressed={full}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${full ? 'bg-rose-500 text-white shadow-lg' : 'hover:opacity-80'}`}
+            className={`flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${full ? 'bg-red-500 text-slate-900 shadow-lg' : 'text-slate-900 hover:opacity-80'}`}
             style={!full ? { color: 'var(--lo-text)' } : undefined}>
             <Users size={14} /> Full
           </button>
@@ -603,29 +613,29 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
 
       {/* ---- Edit My Details modal ---- */}
       {editingDetails && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(58,40,0,0.4)' }}>
-          <div className="mx-4 w-full max-w-sm rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
+        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
+          <div role="dialog" aria-modal="true" aria-label="Edit details" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Details</h3>
-              <button type="button" onClick={() => setEditingDetails(false)} className="rounded-lg p-1" style={{ color: 'var(--lo-text-secondary)' }}><X size={16} /></button>
+              <button type="button" onClick={() => setEditingDetails(false)} aria-label="Close edit details dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Full name</span>
                 <input value={detailDraft.fullName} onChange={(e) => setDetailDraft((d) => ({ ...d, fullName: e.target.value }))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Mobile</span>
                 <input value={detailDraft.phone} onChange={(e) => setDetailDraft((d) => ({ ...d, phone: e.target.value }))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
               </label>
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
-              <button type="button" onClick={() => setEditingDetails(false)} className="rounded-xl border px-3 py-2 text-xs font-bold" style={{ borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>Cancel</button>
-              <button type="button" onClick={saveDetails} className="rounded-xl px-4 py-2 text-xs font-bold text-white" style={{ background: 'var(--lo-pink)' }}>Save</button>
+              <button type="button" onClick={() => setEditingDetails(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
+              <button type="button" onClick={saveDetails} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
             </footer>
           </div>
         </div>
@@ -633,11 +643,11 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
 
       {/* ---- Edit Trip Finances modal ---- */}
       {editingTrip && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(58,40,0,0.4)' }}>
-          <div className="mx-4 w-full max-w-sm rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
+        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
+          <div role="dialog" aria-modal="true" aria-label="Edit trip finances" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Trip Finances</h3>
-              <button type="button" onClick={() => setEditingTrip(null)} className="rounded-lg p-1" style={{ color: 'var(--lo-text-secondary)' }}><X size={16} /></button>
+              <button type="button" onClick={() => setEditingTrip(null)} aria-label="Close trip finances dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               {[
@@ -649,14 +659,14 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
                 <label key={key} className="block">
                   <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}><I size={11} /> {label}</span>
                   <input type="number" value={tripDraft[key]} onChange={(e) => setTripDraft((d) => ({ ...d, [key]: e.target.value }))}
-                    className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                    className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                     style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
                 </label>
               ))}
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
-              <button type="button" onClick={() => setEditingTrip(null)} className="rounded-xl border px-3 py-2 text-xs font-bold" style={{ borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>Cancel</button>
-              <button type="button" onClick={updateTripFinancials} className="rounded-xl px-4 py-2 text-xs font-bold text-white" style={{ background: 'var(--lo-pink)' }}>Save</button>
+              <button type="button" onClick={() => setEditingTrip(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
+              <button type="button" onClick={updateTripFinancials} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
             </footer>
           </div>
         </div>
@@ -664,29 +674,29 @@ export default function DriverView({ routes, connected, drawerOpen, onCloseDrawe
 
       {/* ---- Edit Announcement modal ---- */}
       {editingAnnounce && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(58,40,0,0.4)' }}>
-          <div className="mx-4 w-full max-w-sm rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
+        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
+          <div role="dialog" aria-modal="true" aria-label="Edit announcement" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Announcement</h3>
-              <button type="button" onClick={() => setEditingAnnounce(null)} className="rounded-lg p-1" style={{ color: 'var(--lo-text-secondary)' }}><X size={16} /></button>
+              <button type="button" onClick={() => setEditingAnnounce(null)} aria-label="Close announcement dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Title</span>
                 <input value={announceDraft.title} onChange={(e) => setAnnounceDraft((d) => ({ ...d, title: e.target.value }))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Message</span>
                 <textarea value={announceDraft.message} onChange={(e) => setAnnounceDraft((d) => ({ ...d, message: e.target.value }))} rows={3}
-                  className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
               </label>
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
-              <button type="button" onClick={() => setEditingAnnounce(null)} className="rounded-xl border px-3 py-2 text-xs font-bold" style={{ borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>Cancel</button>
-              <button type="button" onClick={saveEditedAnnounce} className="rounded-xl px-4 py-2 text-xs font-bold text-white" style={{ background: 'var(--lo-pink)' }}>Save</button>
+              <button type="button" onClick={() => setEditingAnnounce(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
+              <button type="button" onClick={saveEditedAnnounce} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
             </footer>
           </div>
         </div>

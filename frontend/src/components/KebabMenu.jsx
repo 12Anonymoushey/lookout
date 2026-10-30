@@ -22,7 +22,7 @@ export function KebabMenu({ items = [] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg p-1 text-[var(--lo-text-secondary)] transition hover:bg-[var(--lo-card-border)] hover:text-[var(--lo-text)]"
+        className="rounded-lg p-1 text-slate-500 transition hover:bg-[var(--lo-card-border)] hover:text-slate-900"
         aria-label="More actions"
       >
         <MoreVertical size={15} />
@@ -71,7 +71,7 @@ export function SearchSortBar({
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 rounded-xl border border-[var(--lo-card-border)] bg-[var(--lo-card)] px-3 py-2 text-xs text-[var(--lo-text)] placeholder:text-[var(--lo-text-secondary)] focus:border-[var(--lo-pink)] focus:outline-none focus:ring-1 focus:ring-[#FF69B4]/25"
+        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-500 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600/25"
       />
       {fields.length > 0 && (
         <button
@@ -84,7 +84,7 @@ export function SearchSortBar({
             }
             setFieldIdx((i) => (i + 1) % fields.length);
           }}
-          className="flex items-center gap-1 rounded-xl border border-[var(--lo-card-border)] bg-[var(--lo-card)] px-2.5 py-2 text-[10px] font-bold text-[var(--lo-text)] transition hover:border-[var(--lo-pink)]/50"
+          className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-bold text-slate-900 transition hover:border-[var(--lo-primary)]/50"
           title={`Sort by ${currentField}`}
         >
           <ArrowUpDown size={12} />
@@ -108,7 +108,7 @@ export function ConfirmToast({ message, onClose }) {
   if (!message) return null;
 
   return (
-    <div className="lo-toast pointer-events-none fixed left-1/2 top-20 z-[2000] -translate-x-1/2 rounded-full border border-emerald-400/50 bg-[var(--lo-panel)] px-4 py-2 text-xs font-bold text-emerald-300 shadow-xl backdrop-blur">
+    <div className="lo-toast pointer-events-none fixed left-1/2 top-20 z-[2000] -translate-x-1/2 rounded-full border border-emerald-500 bg-white px-4 py-2 text-xs font-bold text-slate-900 shadow-xl backdrop-blur">
       ✓ {message}
     </div>
   );

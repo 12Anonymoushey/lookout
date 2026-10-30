@@ -1,27 +1,29 @@
 @import "tailwindcss";
 
-/* ==================== LOOK OUT! — Pastel Palette ==================== */
-/*
- * Bright Pink  #FF66A1 — primary accent, active states, CTAs
- * Light Pink   #FFAAD3 — soft backgrounds, hover states
- * Pastel Yellow #FFE875 — badges, highlights, idle
- * Light Blue   #99E3FF — info, secondary accent, links
- * Sky Blue     #5CE1FF — success, live, driver accent
- */
+@theme {
+  --color-slate-50: #F8FAFC;
+  --color-white: #FFFFFF;
+  --color-slate-200: #E2E8F0;
+  --color-blue-600: #2563EB;
+  --color-blue-700: #1D4ED8;
+  --color-emerald-500: #10B981;
+  --color-red-500: #EF4444;
+  --color-slate-900: #0F172A;
+  --color-slate-500: #64748B;
+}
 
 :root {
-  --lo-pink: #FF66A1;
-  --lo-pink-soft: #FFAAD3;
-  --lo-yellow: #FFE875;
-  --lo-cyan: #99E3FF;
-  --lo-sky: #5CE1FF;
-  --lo-bg: #FFE875;
-  --lo-panel: #FFF5D6;
-  --lo-panel-border: #f0cc50;
-  --lo-card: #FFF0F5;
-  --lo-card-border: #f0cc50;
-  --lo-text: #3a2800;
-  --lo-text-secondary: #7a6030;
+  --lo-bg: var(--color-slate-50);
+  --lo-panel: var(--color-white);
+  --lo-panel-border: var(--color-slate-200);
+  --lo-card: var(--color-white);
+  --lo-card-border: var(--color-slate-200);
+  --lo-primary: var(--color-blue-600);
+  --lo-primary-hover: var(--color-blue-700);
+  --lo-success: var(--color-emerald-500);
+  --lo-critical: var(--color-red-500);
+  --lo-text: var(--color-slate-900);
+  --lo-text-secondary: var(--color-slate-500);
 }
 
 /* ------------------------------ Base ------------------------------ */
@@ -38,8 +40,8 @@ body {
   color: var(--lo-text);
 }
 
-/* Ensure the root fills the yellow bg */
 #root {
+  min-height: 100%;
   background-color: var(--lo-bg);
 }
 
@@ -48,9 +50,41 @@ select option {
   color: var(--lo-text);
 }
 
+#root button {
+  box-shadow: inset 0 0 0 0 var(--color-blue-600);
+  transition: color 500ms ease-out, box-shadow 500ms ease-out, transform 150ms ease-out;
+}
+
+#root button:hover:not(:disabled) {
+  color: white;
+  box-shadow: inset 0 -100px 0 0 var(--color-blue-600);
+}
+
+#root button:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+#root button:focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 3px;
+  color: white;
+  box-shadow: inset 0 -100px 0 0 var(--color-blue-600);
+}
+
+#root button:hover:not(:disabled) :where(span, svg),
+#root button:focus-visible:not(:disabled) :where(span, svg) {
+  color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #root button {
+    transition: none;
+  }
+}
+
 /* -------------------- Leaflet overrides ---------------- */
 .leaflet-container {
-  background-color: #FFF9E0;
+  background-color: var(--lo-bg);
   font-family: inherit;
 }
 
@@ -89,13 +123,13 @@ a.leaflet-popup-close-button {
 }
 
 .leaflet-control-attribution {
-  background: rgba(255, 232, 117, 0.7) !important;
-  color: var(--lo-text-secondary) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--lo-text) !important;
   font-size: 10px !important;
 }
 
 .leaflet-control-attribution a {
-  color: var(--lo-sky) !important;
+  color: var(--lo-primary) !important;
 }
 
 /* --------------------- Vehicle DivIcons -------------------- */
@@ -121,7 +155,7 @@ a.leaflet-popup-close-button {
   height: 34px;
   margin-left: -17px;
   border-radius: 9999px;
-  border: 2px solid var(--lo-pink);
+  border: 2px solid var(--lo-primary);
   animation: lo-pulse 2s ease-out infinite;
 }
 
@@ -172,17 +206,8 @@ a.leaflet-popup-close-button {
   position: absolute;
   inset: 4px;
   border-radius: 9999px;
-  background: var(--lo-pink);
+  background: var(--lo-success);
   border: 2px solid var(--lo-bg);
-  box-shadow: 0 0 0 2px rgba(255, 102, 161, 0.35);
-}
-
-.lo-me__halo {
-  position: absolute;
-  inset: -6px;
-  border-radius: 9999px;
-  background: rgba(255, 105, 180, 0.28);
-  animation: lo-pulse 2.4s ease-out infinite;
 }
 
 .lo-me__label {
@@ -192,8 +217,8 @@ a.leaflet-popup-close-button {
   padding: 1px 6px;
   border-radius: 9999px;
   background-color: var(--lo-panel);
-  border: 1px solid rgba(255, 102, 161, 0.4);
-  color: var(--lo-pink);
+  border: 1px solid rgba(37, 99, 235, 0.4);
+  color: var(--lo-primary);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -212,15 +237,16 @@ a.leaflet-popup-close-button {
   align-items: center;
   gap: 5px;
   padding: 5px 11px 5px 9px;
+  min-height: 44px;
   border-radius: 9999px;
-  border: 1.5px solid rgba(255, 105, 180, 0.7);
-  background: linear-gradient(180deg, var(--lo-pink), #e05090);
-  color: #ffffff;
+  border: 1.5px solid var(--lo-success);
+  background: var(--lo-success);
+  color: var(--lo-text);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.03em;
   white-space: nowrap;
-  box-shadow: 0 8px 20px rgba(255, 102, 161, 0.3);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
   transform-origin: 50% 120%;
   animation: lo-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: pointer;
@@ -237,7 +263,7 @@ a.leaflet-popup-close-button {
   margin-left: -5px;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 7px solid #d4509a;
+  border-top: 7px solid var(--lo-success);
 }
 
 .lo-poke__bob {
@@ -245,12 +271,12 @@ a.leaflet-popup-close-button {
 }
 
 .lo-poke--sent {
-  background: linear-gradient(180deg, var(--lo-sky), #40c8e8);
-  border-color: rgba(92, 225, 255, 0.8);
+  background: var(--lo-success);
+  border-color: var(--lo-success);
 }
 
 .lo-poke--sent::after {
-  border-top-color: #40c8e8;
+  border-top-color: var(--lo-success);
 }
 
 @keyframes lo-pop {
@@ -270,7 +296,7 @@ a.leaflet-popup-close-button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #f0d4e4;
+  background: var(--lo-panel-border);
   border-radius: 8px;
 }
 
@@ -278,69 +304,58 @@ a.leaflet-popup-close-button {
   background: transparent;
 }
 
-/* ------------------ Chrome-style tabs ------------------ */
-.chrome-tabs {
-  display: flex;
-  align-items: flex-end;
-  padding: 0 10px;
-  background: transparent;
+/* ------------------ Login and story experience ------------------ */
+.auth-page-scroll {
+  scroll-behavior: smooth;
+  scroll-padding-top: 0;
 }
 
-.chrome-tab {
-  position: relative;
-  flex: 1 1 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 42px;
-  padding: 0 18px;
-  margin-left: -10px;
-  border: none;
-  background: var(--lo-card);
-  color: var(--lo-text-secondary);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
-  transition: background-color 0.15s ease, color 0.15s ease;
+.auth-card-enter {
+  animation: auth-rise-in 650ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.chrome-tab:first-child {
-  margin-left: 0;
+.auth-form-enter {
+  animation: auth-form-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.chrome-tab:hover {
-  background: var(--lo-card-border);
-  color: var(--lo-text);
+.auth-segment-pill {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: calc(50% - 6px);
+  border-radius: 0.75rem;
+  background: var(--color-blue-600);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.22);
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.chrome-tab[aria-selected='true'] {
-  z-index: 1;
-  height: 46px;
-  background: var(--lo-panel);
-  color: var(--lo-pink);
+.auth-segment-pill--driver {
+  transform: translateX(100%);
 }
 
-.chrome-tab:focus-visible {
-  outline: 2px solid var(--lo-pink);
-  outline-offset: -3px;
+@keyframes auth-rise-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.chrome-tab__hint {
-  font-size: 10px;
-  font-weight: 600;
-  opacity: 0.7;
+@keyframes auth-form-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@media (max-width: 420px) {
-  .chrome-tab {
-    padding: 0 10px;
-    font-size: 12px;
+@media (prefers-reduced-motion: reduce) {
+  .auth-card-enter,
+  .auth-form-enter {
+    animation: none;
   }
-  .chrome-tab__hint {
-    display: none;
+
+  .auth-page-scroll {
+    scroll-behavior: auto;
+  }
+
+  .auth-segment-pill {
+    transition: none;
   }
 }
 
@@ -386,25 +401,128 @@ a.leaflet-popup-close-button {
 }
 
 .lo-kebab-item:hover {
-  background: rgba(255, 102, 161, 0.08);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .lo-kebab-item--danger {
-  color: #f87171;
+  color: var(--lo-text);
 }
 
 .lo-kebab-item--danger:hover {
-  background: rgba(248, 113, 113, 0.1);
+  background: rgba(239, 68, 68, 0.12);
 }
 
-/* ---- About Us slide-up animation ---- */
-@keyframes slide-up {
-  0% { opacity: 0; max-height: 0; transform: translateY(16px); }
-  100% { opacity: 1; max-height: 600px; transform: translateY(0); }
+@media (pointer: coarse) {
+  button,
+  input,
+  select,
+  textarea,
+  [role='button'] {
+    min-height: 44px;
+  }
 }
 
-.lo-about-slide {
-  animation: slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  overflow: hidden;
-  transform-origin: bottom center;
+.floating-dock {
+  isolation: isolate;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
+.floating-dock[data-collapsed='true'] {
+  transform: translateX(calc(50vw - 4.25rem));
+}
+
+#root button.floating-dock__toggle {
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+.floating-dock__toggle svg {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.floating-dock[data-collapsed='true'] .floating-dock__toggle svg {
+  transform: rotate(180deg);
+}
+
+.floating-dock__item {
+  transform: scale(var(--dock-scale, 1));
+  transform-origin: center bottom;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), color 180ms ease, background-color 180ms ease;
+}
+
+.floating-dock__item:hover {
+  z-index: 50;
+  transform: scale(max(var(--dock-scale, 1), 1.35));
+}
+
+.floating-dock__item[data-touch-active='true'] {
+  z-index: 50;
+  transform: scale(max(var(--dock-scale, 1), 1.35));
+  background-color: white;
+  color: var(--color-blue-600);
+}
+
+.floating-dock__label {
+  opacity: 0;
+  transform: translate(-50%, 4px) scale(0.9);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.floating-dock__item:hover .floating-dock__label,
+.floating-dock__item:focus-visible .floating-dock__label,
+.floating-dock__item[data-touch-active='true'] .floating-dock__label {
+  z-index: 60;
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-dock__item,
+  .floating-dock__label,
+  .floating-dock__toggle,
+  .floating-dock__items {
+    transition: none;
+  }
+
+  .floating-dock__toggle svg {
+    transition: none;
+  }
+}
+
+.sidebar-nav__item {
+  transform: translateX(0) scale(1);
+  transform-origin: left center;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), color 160ms ease, background-color 160ms ease, box-shadow 200ms ease;
+}
+
+.sidebar-nav__item:hover,
+.sidebar-nav__item:focus-visible {
+  z-index: 1;
+}
+
+.sidebar-nav__item:hover .sidebar-nav__icon,
+.sidebar-nav__item:focus-visible .sidebar-nav__icon {
+  transform: scale(1.16) rotate(-7deg);
+}
+
+.sidebar-back-button {
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.sidebar-back-button:hover {
+  transform: translateX(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav__item,
+  .sidebar-nav__icon,
+  .sidebar-back-button {
+    transition: none;
+  }
 }

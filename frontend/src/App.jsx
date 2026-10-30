@@ -101,12 +101,14 @@ export default function App() {
   useEffect(() => { setDrawerOpen(false); }, [view]);
 
   const switchView = useCallback((next) => setView(next), []);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const vehicles = useMemo(() => Object.values(vehiclesById), [vehiclesById]);
 
   if (!ready) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-3" style={{ background: 'var(--lo-bg)', color: 'var(--lo-text)' }}>
-        <Loader2 size={26} className="animate-spin" style={{ color: 'var(--lo-pink)' }} />
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-slate-50 text-slate-900">
+        <Loader2 size={28} className="animate-spin text-blue-600" />
         <p className="text-sm font-semibold">Loading…</p>
       </div>
     );
@@ -116,40 +118,41 @@ export default function App() {
 
   const shellProps = {
     drawerOpen,
-    onCloseDrawer: () => setDrawerOpen(false),
+    onOpenDrawer: openDrawer,
+    onCloseDrawer: closeDrawer,
     collapsed: panelCollapsed,
     onToggleCollapse: () => setPanelCollapsed((v) => !v),
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden" style={{ background: 'var(--lo-bg)', color: 'var(--lo-text)' }}>
-      <Navbar view={view} onViewChange={switchView} connected={connected} profile={profile} role={role} isAdmin={isAdmin} isDemo={isDemo} onSignOut={signOut} onOpenSidebar={() => setDrawerOpen(true)} />
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50 text-slate-900">
+      <Navbar view={view} onViewChange={switchView} connected={connected} profile={profile} role={role} isAdmin={isAdmin} isDemo={isDemo} onSignOut={signOut} onOpenSidebar={openDrawer} />
 
       {firebaseMissing && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] text-slate-900">
           <Bus size={13} className="shrink-0" /> Demo session — not saved.
         </div>
       )}
 
       {profileError && (
-        <div className="flex items-center gap-2 border-b border-rose-300 bg-rose-50 px-4 py-1.5 text-[11px] text-rose-700">
+        <div className="flex items-center gap-2 border-b border-red-500 bg-red-500 px-4 py-1.5 text-[11px] text-slate-900">
           <AlertTriangle size={13} className="shrink-0" /> {profileError}
         </div>
       )}
 
       {routesError && view !== 'admin' && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-500 bg-red-500 px-4 py-2 text-xs text-slate-900">
           <span className="flex items-center gap-2">
             <AlertTriangle size={14} className="shrink-0" /> {routesError}
           </span>
-          <button type="button" onClick={loadRoutes} className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 px-2.5 py-1 font-semibold transition hover:bg-amber-400/15">
+          <button type="button" onClick={loadRoutes} className="flex min-h-11 items-center gap-2 rounded-xl border border-blue-600/40 bg-white px-3 text-sm font-semibold text-blue-600 transition hover:bg-slate-50">
             <RefreshCw size={12} /> Retry
           </button>
         </div>
       )}
       <main className="relative min-h-0 flex-1">
         {view === 'admin' ? (
-          <AdminView vehicles={vehicles} {...shellProps} />
+          <AdminView vehicles={vehicles} onViewChange={switchView} {...shellProps} />
         ) : view === 'driver' ? (
           <DriverView routes={routes} connected={connected} {...shellProps} />
         ) : (

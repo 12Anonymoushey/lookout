@@ -35,7 +35,7 @@ const ROUTES = [
     name: 'Ungka - ITGSI Loop',
     locality: 'Pavia · Jaro · La Paz · City Proper',
     type: 'Traditional Jeepney',
-    color: '#22d3ee',
+    color: '#2563EB',
     loop: true,
     stops: [
       { id: 'ungka-terminal', name: 'Ungka Transport Terminal', lat: 10.7302, lng: 122.5326 },
@@ -55,7 +55,7 @@ const ROUTES = [
     name: 'Tagbak - City Proper',
     locality: 'Jaro · La Paz · City Proper',
     type: 'Traditional Jeepney',
-    color: '#a78bfa',
+    color: '#2563EB',
     loop: false,
     stops: [
       { id: 'tagbak-terminal', name: 'Tagbak Terminal, Jaro', lat: 10.7553, lng: 122.5692 },
@@ -72,7 +72,7 @@ const ROUTES = [
     name: 'Mandurriao - Jaro Plaza',
     locality: 'Mandurriao · La Paz · Jaro',
     type: 'Traditional Jeepney',
-    color: '#fbbf24',
+    color: '#2563EB',
     loop: false,
     stops: [
       { id: 'mandurriao-plaza', name: 'Mandurriao Plaza', lat: 10.721, lng: 122.537 },
@@ -89,7 +89,7 @@ const ROUTES = [
     name: 'Villa Beach - City Proper',
     locality: 'Arevalo · Molo · City Proper',
     type: 'Traditional Jeepney',
-    color: '#34d399',
+    color: '#2563EB',
     loop: false,
     stops: [
       { id: 'villa-beach', name: 'Villa Beach - Dakung Balayan', lat: 10.6624, lng: 122.5437 },

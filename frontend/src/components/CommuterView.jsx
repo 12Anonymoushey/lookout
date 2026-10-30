@@ -5,7 +5,6 @@ import {
   Bookmark,
   Bus,
   Check,
-  ChevronDown,
   Clock,
   Eye,
   Hand,
@@ -46,7 +45,7 @@ const POKE_COOLDOWN_MS = 6_000;
 
 const meIcon = L.divIcon({
   className: 'lo-me-wrapper',
-  html: `<div class="lo-me"><span class="lo-me__halo"></span><span class="lo-me__dot"></span><span class="lo-me__label">You are here</span></div>`,
+  html: `<div class="lo-me"><span class="lo-me__dot"></span><span class="lo-me__label">You are here</span></div>`,
   iconSize: [24, 24],
   iconAnchor: [12, 12],
 });
@@ -77,6 +76,7 @@ export default function CommuterView({
   vehicles,
   hasFetchError = false,
   drawerOpen,
+  onOpenDrawer,
   onCloseDrawer,
   collapsed,
   onToggleCollapse,
@@ -87,6 +87,7 @@ export default function CommuterView({
   const [editingDetails, setEditingDetails] = useState(false);
   const [detailDraft, setDetailDraft] = useState({ fullName: '', phone: '' });
   const [routeFilter, setRouteFilter] = useState('all');
+  const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [selectedStop, setSelectedStop] = useState(null);
   const [, setTick] = useState(0);
   const [myLocation, setMyLocation] = useState(null);
@@ -262,7 +263,7 @@ export default function CommuterView({
     });
   }, [visibleVehicles, savedModalQuery, routeById]);
 
-  const handleFilterChange = (v) => { setRouteFilter(v); setSelectedStop(null); };
+  const handleFilterChange = (v) => { setRouteFilter(v); setSelectedStop(null); setRoutePickerOpen(false); };
   const recenter = () => { mapRef.current?.flyTo(myLocation ? [myLocation.lat, myLocation.lng] : ILOILO_CENTER, myLocation ? 16 : 14, { duration: 0.8 }); };
   const routePositions = focusRoute ? (focusRoute.loop ? loopPositions(focusRoute.stops) : focusRoute.stops.map((s) => [s.lat, s.lng])) : [];
   const locBadge = locState === 'locked' ? `±${Math.round(myLocation?.accuracy ?? 0)} m` : locState === 'locating' ? 'locating…' : locState === 'denied' ? 'location off' : 'unavailable';
@@ -270,7 +271,7 @@ export default function CommuterView({
   /* ======================== SIDEBAR PANEL ======================== */
   const panel = (
     <>
-      <Section icon={UserRound} title="My Details" tint="pink">
+      <Section icon={UserRound} title="My Details" tint="primary">
         <InfoRow label="Name" value={profile?.fullName} />
         <InfoRow label="Email" value={profile?.email} />
         <InfoRow label="Mobile" value={profile?.phone || '—'} />
@@ -278,17 +279,17 @@ export default function CommuterView({
         <InfoRow label="Pokes sent" value={pokesSent} />
         <button type="button" onClick={openDetailEditor}
           className="flex w-full items-center justify-center gap-1.5 rounded-xl border py-2 text-[11px] font-bold transition hover:opacity-80"
-          style={{ borderColor: 'var(--lo-pink)', color: 'var(--lo-pink)' }}>
+          style={{ borderColor: 'var(--lo-primary)', color: 'var(--lo-primary)' }}>
           <Pencil size={12} /> Edit Details
         </button>
       </Section>
 
       {/* ---- Saved Transportations ---- */}
-      <Section icon={Bookmark} title="Saved Transportations" tint="sky">
+      <Section id="commuter-saved" icon={Bookmark} title="Saved Transportations" tint="success">
         {/* + button to open search modal */}
         <button type="button" onClick={() => { setSavedModalOpen(true); setSavedModalQuery(''); }}
           className="flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-2.5 text-xs font-bold transition hover:opacity-80"
-          style={{ borderColor: 'var(--lo-pink)', color: 'var(--lo-pink)' }}>
+          style={{ borderColor: 'var(--lo-primary)', color: 'var(--lo-primary)' }}>
           <Plus size={14} /> Add Saved PUV
         </button>
 
@@ -326,7 +327,7 @@ export default function CommuterView({
       </Section>
 
       {/* ---- Recent Rides ---- */}
-      <Section icon={Clock} title="Recent Rides" tint="cyan" defaultOpen={false}>
+      <Section id="commuter-rides" icon={Clock} title="Recent Rides" tint="primary" defaultOpen={false}>
         <SearchSortBar search={recentSearch} onSearchChange={setRecentSearch} sortField={recentSort.field} sortDir={recentSort.dir}
           onSortToggle={(field, dir) => setRecentSort({ field, dir })} fields={['plate', 'operatorName', 'driverName']} placeholder="Search rides…" />
 
@@ -359,7 +360,7 @@ export default function CommuterView({
         )}
       </Section>
 
-      <Section icon={Star} title="Stats" tint="yellow" defaultOpen={false}>
+      <Section icon={Star} title="Stats" tint="primary" defaultOpen={false}>
         {stats ? (
           <div className="space-y-1.5">
             <InfoRow label="Total rides" value={stats.total} />
@@ -372,7 +373,7 @@ export default function CommuterView({
       </Section>
 
       {/* ---- Announcements ---- */}
-      <Section icon={Megaphone} title="Announcements" tint="sky" defaultOpen={false}>
+      <Section icon={Megaphone} title="Announcements" tint="success" defaultOpen={false}>
         {announcements.length === 0 ? (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
         ) : (
@@ -388,34 +389,25 @@ export default function CommuterView({
         )}
       </Section>
 
-      <Section icon={Route} title="Live Fleet" tint="pink" defaultOpen={false}>
-        <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>Filter by route</span>
-          <span className="relative block">
-            <select value={routeFilter} onChange={(e) => handleFilterChange(e.target.value)}
-              className="w-full appearance-none rounded-xl border px-3 py-2 pr-8 text-xs focus:border-[var(--lo-pink)] focus:outline-none focus:ring-2"
-              style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }}>
-              <option value="all">All routes</option>
-              {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--lo-text-secondary)' }} />
-          </span>
-        </label>
+      <Section icon={Route} title="Live Fleet" tint="primary" defaultOpen={false}>
         <InfoRow label="Live vehicles" value={visibleVehicles.length} />
         <InfoRow label="My point" value={locBadge} />
-        <button type="button" onClick={recenter}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition hover:opacity-80"
-          style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }}>
-          <LocateFixed size={12} /> {myLocation ? 'Center on my point' : 'Recenter'}
-        </button>
       </Section>
     </>
   );
 
+  const dockItems = [
+    { id: 'map', label: 'Live map', icon: MapPin, returnToMap: true, onSelect: () => setRoutePickerOpen(false) },
+    { id: 'routes', label: 'Select route', icon: Route, returnToMap: true, onSelect: () => setRoutePickerOpen((open) => !open) },
+    { id: 'center', label: 'Center map', icon: LocateFixed, returnToMap: true, onSelect: () => { setRoutePickerOpen(false); recenter(); } },
+    { id: 'saved', label: 'Saved PUVs', icon: Bookmark, target: 'commuter-saved' },
+    { id: 'rides', label: 'Recent rides', icon: Clock, target: 'commuter-rides' },
+  ];
+
   /* ======================== MAP STAGE ======================== */
   return (
-    <AppShell brand="Commuter" panel={panel} open={drawerOpen} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
-      <div className="absolute inset-0">
+    <AppShell brand="Commuter" panel={panel} dockItems={dockItems} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
+      <div id="commuter-map" className="absolute inset-0 scroll-m-6">
         <MapContainer center={ILOILO_CENTER} zoom={14} className="h-full w-full" zoomControl={false} ref={mapRef}>
           <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {focusRoute && (
@@ -433,7 +425,7 @@ export default function CommuterView({
           {myLocation && (
             <>
               {myLocation.accuracy > 0 && myLocation.accuracy < 500 && (
-                <Circle center={[myLocation.lat, myLocation.lng]} radius={myLocation.accuracy} pathOptions={{ color: '#FF69B4', weight: 1, fillColor: '#FF69B4', fillOpacity: 0.08 }} />
+                <Circle center={[myLocation.lat, myLocation.lng]} radius={myLocation.accuracy} pathOptions={{ color: '#10B981', weight: 1, fillColor: '#10B981', fillOpacity: 0.08 }} />
               )}
               <Marker position={[myLocation.lat, myLocation.lng]} icon={meIcon} zIndexOffset={400} />
             </>
@@ -447,36 +439,36 @@ export default function CommuterView({
           )}
         </MapContainer>
 
-        {/* Slim live bar */}
-        <div className="pointer-events-none absolute left-2 right-2 top-2 z-[1000] flex flex-wrap items-center gap-2 lg:left-3 lg:top-3">
-          <div className="pointer-events-auto flex h-10 items-center gap-2 rounded-full border pl-3 pr-1.5 shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <PulseDot color="pink" />
-              <span className="text-[11px] font-bold" style={{ color: 'var(--lo-pink)' }}>{visibleVehicles.length} live</span>
+        <div className="pointer-events-none absolute left-2 top-2 z-[1000] lg:left-3 lg:top-3">
+          <div className="pointer-events-auto flex h-10 items-center gap-2 rounded-full border px-3 shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
+            <span className="flex items-center gap-1.5">
+              <PulseDot color="emerald" />
+              <span className="text-[11px] font-bold" style={{ color: 'var(--lo-primary)' }}>{visibleVehicles.length} live</span>
             </span>
-            <span className="h-4 w-px shrink-0" style={{ background: 'var(--lo-card-border)' }} />
-            <label className="relative flex min-w-0 flex-1 items-center lg:w-52 lg:flex-none">
-              <select value={routeFilter} onChange={(e) => handleFilterChange(e.target.value)} aria-label="Filter by route"
-                className="w-full appearance-none truncate rounded-full bg-transparent py-1 pl-1 pr-5 text-[11px] font-semibold focus:outline-none" style={{ color: 'var(--lo-text)' }}>
-                <option value="all">All routes</option>
-                {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-              <ChevronDown size={12} className="pointer-events-none absolute right-1" style={{ color: 'var(--lo-text-secondary)' }} />
-            </label>
-            <button type="button" onClick={recenter} aria-label="Center on my point"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition hover:opacity-80" style={{ background: 'var(--lo-card)', color: 'var(--lo-text)' }}>
-              {myLocation ? <LocateFixed size={13} /> : <MapPin size={13} />}
-            </button>
           </div>
         </div>
 
+        {routePickerOpen && (
+          <section aria-label="Select route" className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 z-[1100] max-h-[min(60vh,24rem)] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+            <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">Select route</h2>
+            <div role="listbox" aria-label="Available routes" className="space-y-1">
+              {[{ id: 'all', name: 'All routes' }, ...routes.map((route) => ({ id: route.id, name: route.name }))].map((route) => (
+                <button key={route.id} type="button" role="option" aria-selected={routeFilter === route.id} onClick={() => handleFilterChange(route.id)}
+                  className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold transition ${routeFilter === route.id ? 'bg-blue-600 text-white' : 'text-slate-900 hover:bg-slate-50'}`}>
+                  {route.name}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Approaching vehicles panel */}
         {selectedStop && (
-          <div className="absolute bottom-4 left-2 right-2 z-[1000] rounded-2xl border p-4 shadow-xl backdrop-blur sm:left-auto sm:right-4 sm:w-96" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
+          <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-2 right-2 z-[1000] rounded-2xl border p-4 shadow-xl backdrop-blur sm:bottom-4 sm:left-auto sm:right-4 sm:w-96" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
             <div className="mb-2.5 flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--lo-text)' }}>
-                  <MapPin size={14} style={{ color: focusRoute?.color ?? '#FF66A1' }} />{selectedStop.name}
+                  <MapPin size={14} style={{ color: focusRoute?.color ?? '#2563EB' }} />{selectedStop.name}
                 </p>
                 <p className="mt-0.5 truncate text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>{focusRoute?.name}</p>
               </div>
@@ -498,17 +490,15 @@ export default function CommuterView({
                           <p className="truncate text-xs font-bold" style={{ color: 'var(--lo-text)' }}>{vehicle.vehicleId}</p>
                           <p className="font-mono text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>{(Number(vehicle.speed) || 0).toFixed(0)} km/h · {formatKm(km)} away</p>
                         </div>
-                        <span className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold" style={{ background: 'var(--lo-cyan)', color: 'var(--lo-text)' }}>{formatEta(etaMin)}</span>
+                        <span className="shrink-0 rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-bold text-white">{formatEta(etaMin)}</span>
                       </div>
                       <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: meta.soft, color: meta.color }}>{meta.label}</span>
+                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: meta.soft, color: 'var(--lo-text)' }}>{meta.label}</span>
                         <div className="flex items-center gap-1.5">
                           <button type="button" onClick={() => addRecentRide(vehicle)}
-                            className="rounded-lg px-2 py-1 text-[10px] font-bold transition hover:opacity-80"
-                            style={{ background: 'var(--lo-pink)', color: '#fff' }}>Ride</button>
+                            className="min-h-11 rounded-xl bg-blue-600 px-3 text-xs font-bold text-white transition hover:bg-blue-700">Ride</button>
                           <button type="button" onClick={() => handlePoke(vehicle)} disabled={state !== 'idle'}
-                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${state === 'sent' ? 'bg-emerald-500/20 text-emerald-600' : ''}`}
-                            style={state !== 'sent' ? { background: 'var(--lo-sky)', color: 'var(--lo-text)' } : {}}>
+                            className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-emerald-500 px-3 text-xs font-bold text-slate-900 transition hover:brightness-95">
                             {state === 'sending' ? <Loader2 size={11} className="animate-spin" /> : state === 'sent' ? <Check size={11} /> : <Hand size={11} />}
                             {state === 'sent' ? 'Poked' : 'Poke'}
                           </button>
@@ -524,7 +514,7 @@ export default function CommuterView({
 
         {toast && (
           <div className="lo-toast pointer-events-none absolute left-1/2 top-14 z-[1100] -translate-x-1/2 rounded-full border px-4 py-2 text-xs font-bold shadow-xl backdrop-blur"
-            style={{ borderColor: 'var(--lo-pink)', background: 'var(--lo-panel)', color: 'var(--lo-pink)' }}>
+            style={{ borderColor: 'var(--lo-primary)', background: 'var(--lo-panel)', color: 'var(--lo-primary)' }}>
             {toast}
           </div>
         )}
@@ -532,7 +522,7 @@ export default function CommuterView({
         {vehicles.length === 0 && !hasFetchError && (
           <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] w-[min(90vw,320px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-5 text-center shadow-xl backdrop-blur"
             style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
-            <Radio size={24} className="mx-auto mb-2 animate-pulse" style={{ color: 'var(--lo-pink)' }} />
+            <Radio size={24} className="mx-auto mb-2 animate-pulse" style={{ color: 'var(--lo-primary)' }} />
             <p className="text-sm font-semibold" style={{ color: 'var(--lo-text)' }}>No live vehicles yet</p>
           </div>
         )}
@@ -540,19 +530,19 @@ export default function CommuterView({
 
       {/* ==================== SAVED PUV SEARCH MODAL ==================== */}
       {savedModalOpen && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(58,40,0,0.4)' }}>
-          <div className="mx-4 w-full max-w-md rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
+        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
+          <div role="dialog" aria-modal="true" aria-label="Add saved PUV" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-md sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Add Saved PUV</h3>
-              <button type="button" onClick={() => setSavedModalOpen(false)} className="rounded-lg p-1 transition hover:opacity-70" style={{ color: 'var(--lo-text-secondary)' }}>
-                <X size={16} />
+              <button type="button" onClick={() => setSavedModalOpen(false)} aria-label="Close saved PUV dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-50 hover:opacity-70">
+                <X size={20} />
               </button>
             </header>
             <div className="p-4">
               <div className="relative mb-3">
                 <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--lo-text-secondary)' }} />
                 <input value={savedModalQuery} onChange={(e) => setSavedModalQuery(e.target.value)} placeholder="Search by plate number or operator…"
-                  className="w-full rounded-xl border py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full rounded-xl border py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} autoFocus />
               </div>
               {savedModalResults.length === 0 ? (
@@ -570,11 +560,10 @@ export default function CommuterView({
                           <p className="text-[10px]" style={{ color: 'var(--lo-text-secondary)' }}>{route?.name || '—'}</p>
                         </div>
                         {alreadySaved ? (
-                          <span className="rounded-lg px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--lo-cyan)', color: 'var(--lo-text)' }}>Saved</span>
+                          <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-900">Saved</span>
                         ) : (
                           <button type="button" onClick={() => addSavedFromSearch(v)}
-                            className="rounded-lg px-2.5 py-1 text-[10px] font-bold text-white transition hover:opacity-80"
-                            style={{ background: 'var(--lo-pink)' }}>
+                            className="min-h-11 rounded-xl bg-blue-600 px-3 text-xs font-bold text-white transition hover:bg-blue-700">
                             <Plus size={11} className="mr-1 inline" />Add
                           </button>
                         )}
@@ -590,29 +579,29 @@ export default function CommuterView({
 
       {/* ---- Edit My Details modal ---- */}
       {editingDetails && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(58,40,0,0.4)' }}>
-          <div className="mx-4 w-full max-w-sm rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--lo-panel-border)', background: 'var(--lo-panel)' }}>
+        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
+          <div role="dialog" aria-modal="true" aria-label="Edit details" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Details</h3>
-              <button type="button" onClick={() => setEditingDetails(false)} className="rounded-lg p-1" style={{ color: 'var(--lo-text-secondary)' }}><X size={16} /></button>
+              <button type="button" onClick={() => setEditingDetails(false)} aria-label="Close edit details dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Full name</span>
                 <input value={detailDraft.fullName} onChange={(e) => setDetailDraft((d) => ({ ...d, fullName: e.target.value }))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Mobile</span>
                 <input value={detailDraft.phone} onChange={(e) => setDetailDraft((d) => ({ ...d, phone: e.target.value }))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lo-pink)]/25"
+                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
                   style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
               </label>
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
-              <button type="button" onClick={() => setEditingDetails(false)} className="rounded-xl border px-3 py-2 text-xs font-bold" style={{ borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>Cancel</button>
-              <button type="button" onClick={saveDetails} className="rounded-xl px-4 py-2 text-xs font-bold text-white" style={{ background: 'var(--lo-pink)' }}>Save</button>
+              <button type="button" onClick={() => setEditingDetails(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
+              <button type="button" onClick={saveDetails} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
             </footer>
           </div>
         </div>
