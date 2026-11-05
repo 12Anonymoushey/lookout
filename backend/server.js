@@ -60,7 +60,9 @@ function isAllowedOrigin(origin) {
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   try {
     const hostname = new URL(origin).hostname.toLowerCase();
-    return hostname.endsWith('.pages.dev') || hostname.endsWith('.cloudflarepages.com');
+    return hostname.endsWith('.pages.dev')
+      || hostname.endsWith('.cloudflarepages.com')
+      || hostname.endsWith('.workers.dev');
   } catch {
     return false;
   }
