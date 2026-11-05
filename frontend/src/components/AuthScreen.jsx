@@ -34,7 +34,7 @@ const EMPTY = { fullName: '', email: '', phone: '', plate: '', password: '', con
 const AUTH_TABS = [ROLE_META.commuter, ROLE_META.driver];
 
 export default function AuthScreen() {
-  const { signIn, signUp, enterDemo, firebaseMissing } = useAuth();
+  const { signIn, signInWithGoogle, signUp, enterDemo, firebaseMissing } = useAuth();
   const [role, setRole] = useState('commuter');
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState(EMPTY);
@@ -85,6 +85,18 @@ export default function AuthScreen() {
     finally { setBusy(false); }
   };
 
+  const onGoogleSignIn = async () => {
+    setBanner('');
+    setBusy(true);
+    try {
+      await signInWithGoogle(role);
+    } catch (err) {
+      setBanner(friendlyAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-slate-50 text-slate-900">
       <main ref={scrollRef} className="auth-page-scroll h-full w-full snap-y snap-mandatory overflow-y-auto overflow-x-hidden">
@@ -101,7 +113,7 @@ export default function AuthScreen() {
                 const selected = role === entry.id;
                 return (
                   <button key={entry.id} type="button" role="tab" aria-selected={selected} onClick={() => switchTab(entry.id)}
-                    className={`auth-segment-option relative z-10 flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-bold transition-colors ${selected ? 'text-white' : 'text-slate-500 hover:text-slate-900'}`}>
+                    className={`auth-segment-option relative z-10 flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-bold  ${selected ? 'text-white' : 'text-slate-500 '}`}>
                     <Icon size={17} />{entry.label}
                   </button>
                 );
@@ -112,7 +124,7 @@ export default function AuthScreen() {
               {firebaseMissing && (
                 <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-900">
                   <p className="flex items-center gap-1.5 font-bold"><AlertTriangle size={13} /> Demo mode</p>
-                  <button type="button" onClick={() => enterDemo(role)} className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-blue-600 px-3 font-bold text-white transition hover:bg-blue-700">
+                  <button type="button" onClick={() => enterDemo(role)} className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-blue-600 px-3 font-bold text-white  ">
                     <Radio size={14} /> Continue as {meta.label}
                   </button>
                 </div>
@@ -130,7 +142,7 @@ export default function AuthScreen() {
                 {isSignup && <Field icon={Phone} label="Mobile number" error={errors.phone} value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: normalizePhone(e.target.value) }))} placeholder="09171234567" inputMode="tel" autoComplete="tel" />}
                 {isSignup && role === 'driver' && <Field icon={CreditCard} label="Primary plate number" error={errors.plate} value={form.plate} onChange={(e) => setForm((p) => ({ ...p, plate: normalizePlate(e.target.value) }))} placeholder="BMS 1930" />}
                 <Field icon={Lock} label="Password" error={errors.password} value={form.password} onChange={set('password')} placeholder="At least 6 characters" type={showPassword ? 'text' : 'password'} autoComplete={isSignup ? 'new-password' : 'current-password'}
-                  trailing={<button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl transition hover:bg-slate-50" style={{ color: 'var(--lo-text-secondary)' }}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>} />
+                  trailing={<button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl  " style={{ color: 'var(--lo-text-secondary)' }}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>} />
                 {isSignup && <Field icon={ShieldCheck} label="Confirm password" error={errors.confirm} value={form.confirm} onChange={set('confirm')} placeholder="Retype your password" type={showPassword ? 'text' : 'password'} autoComplete="new-password"
                   trailing={form.confirm.length > 0 && (
                     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-900">
@@ -138,22 +150,40 @@ export default function AuthScreen() {
                     </span>
                   )} />}
 
-                <button type="submit" disabled={busy} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {!isSignup && (
+                  <>
+                    <button type="button" onClick={onGoogleSignIn} disabled={busy}
+                      className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900">
+                      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.26-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62Z" />
+                        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.8.54-1.84.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.96v2.33A9 9 0 0 0 9 18Z" />
+                        <path fill="#FBBC05" d="M3.95 10.71A5.41 5.41 0 0 1 3.66 9c0-.59.1-1.16.29-1.71V4.96H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.04l2.99-2.33Z" />
+                        <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.34l2.58-2.58A8.65 8.65 0 0 0 9 0 9 9 0 0 0 .96 4.96l2.99 2.33C4.66 5.16 6.65 3.58 9 3.58Z" />
+                      </svg>
+                      Continue with Google
+                    </button>
+                    <div className="flex items-center gap-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      <span className="h-px flex-1 bg-slate-200" />or<span className="h-px flex-1 bg-slate-200" />
+                    </div>
+                  </>
+                )}
+
+                <button type="submit" disabled={busy} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white shadow-lg   disabled:cursor-not-allowed disabled:opacity-60">
                   {busy ? <><Loader2 size={16} className="animate-spin" /> Please wait</> : <>{isSignup ? 'Create account' : 'Log in'} <ArrowRight size={16} /></>}
                 </button>
               </form>
 
               <p className="mt-4 text-center text-xs text-slate-500">
                 {isSignup ? (
-                  <>Have an account? <button type="button" onClick={() => switchMode('login')} className="min-h-11 px-1 font-bold text-blue-600 underline decoration-dotted underline-offset-4 hover:text-blue-700">Log in</button></>
+                  <>Have an account? <button type="button" onClick={() => switchMode('login')} className="min-h-11 px-1 font-bold text-blue-600 underline decoration-dotted underline-offset-4 ">Log in</button></>
                 ) : (
-                  <>New here? <button type="button" onClick={() => switchMode('signup')} className="min-h-11 px-1 font-bold text-blue-600 underline decoration-dotted underline-offset-4 hover:text-blue-700">Sign up</button></>
+                  <>New here? <button type="button" onClick={() => switchMode('signup')} className="min-h-11 px-1 font-bold text-blue-600 underline decoration-dotted underline-offset-4 ">Sign up</button></>
                 )}
               </p>
             </div>
           </div>
           <button type="button" onClick={() => document.getElementById('auth-about')?.scrollIntoView({ behavior: 'smooth' })}
-            aria-label="About Look Out" className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-blue-600">
+            aria-label="About Look Out" className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-slate-500   ">
             <ArrowDown size={18} />
           </button>
         </div>
@@ -180,7 +210,7 @@ function Field({ icon: Icon, label, error, trailing, ...inputProps }) {
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>{label}</span>
       <span className="relative block">
         <Icon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--lo-text-secondary)' }} />
-        <input {...inputProps} className={`min-h-12 w-full rounded-xl border py-3 pl-10 pr-12 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-600/25 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/25' : 'border-slate-200 focus:border-blue-600'}`}
+        <input {...inputProps} className={`min-h-12 w-full rounded-xl border py-3 pl-10 pr-12 text-sm  focus:outline-none focus:ring-2 focus:ring-blue-600/25 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/25' : 'border-slate-200 focus:border-blue-600'}`}
           style={{ borderColor: error ? undefined : 'var(--lo-panel-border)', backgroundColor: 'var(--lo-panel)', color: 'var(--lo-text)' }} />
         {trailing && <span className="absolute right-1 top-1/2 -translate-y-1/2">{trailing}</span>}
       </span>

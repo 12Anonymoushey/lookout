@@ -16,6 +16,7 @@ import {
   firebaseReady,
   fetchProfile,
   loginAccount,
+  loginWithGoogle,
   logoutAccount,
   profileFromUser,
   signUpAccount,
@@ -130,6 +131,17 @@ export function AuthProvider({ children }) {
         email,
         password,
       });
+      rememberRole(nextUser.uid, nextProfile?.role ?? role);
+      setProfile(nextProfile);
+      setUser(nextUser);
+      return nextProfile;
+    },
+    [rememberRole],
+  );
+
+  const signInWithGoogle = useCallback(
+    async (role) => {
+      const { user: nextUser, profile: nextProfile } = await loginWithGoogle({ role });
       rememberRole(nextUser.uid, nextProfile?.role ?? role);
       setProfile(nextProfile);
       setUser(nextUser);
@@ -279,6 +291,7 @@ export function AuthProvider({ children }) {
       firebaseMissing: !firebaseReady,
       profileError,
       signIn,
+      signInWithGoogle,
       signUp,
       signOut,
       enterDemo,
@@ -299,6 +312,7 @@ export function AuthProvider({ children }) {
       demo,
       profileError,
       signIn,
+      signInWithGoogle,
       signUp,
       signOut,
       enterDemo,

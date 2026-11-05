@@ -4,35 +4,36 @@ import {
   AlertTriangle,
   Banknote,
   Bus,
-  Check,
   ChevronDown,
   Clock,
+  CloudRain,
   Crosshair,
   DollarSign,
-  Edit3,
   Fuel,
+  Hand,
   Loader2,
   Megaphone,
   Pencil,
   Play,
-  Plus,
   Satellite,
   Send,
   Square,
   Star,
   Trash2,
   TrendingUp,
+  Radio,
   UserRound,
-  Users,
   X,
 } from 'lucide-react';
 import { socket } from '../services/socket.js';
 import { bearingDeg, cardinal, haversineKm, pathLengthKm, pointAtDistance } from '../utils/geo.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import AppShell, { InfoRow, Section } from './AppShell.jsx';
+import AppShell, { InfoRow, ProfileScreen, Section } from './AppShell.jsx';
 import PlateManager from './PlateManager.jsx';
 import DriverPokes from './DriverPokes.jsx';
 import PulseDot from './PulseDot.jsx';
+import EmergencyRadio from './EmergencyRadio.jsx';
+import WeatherTab from './WeatherTab.jsx';
 import VehicleMarker from './VehicleMarker.jsx';
 import { KebabMenu, SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement, getDriverAnnouncements, getAllAnnouncements } from '../services/announcementService.js';
@@ -42,8 +43,134 @@ const TICK_MS = 3000;
 
 const fmtCoord = (n) => (n == null || !Number.isFinite(n) ? '—' : Number(n).toFixed(6));
 const fmtDuration = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+const DESTINATION_RADIUS_KM = 0.15;
 
-export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer, onCloseDrawer, collapsed, onToggleCollapse }) {
+function nearestStop(route, lat, lng) {
+  if (!route?.stops?.length || lat == null || lng == null) return { stop: null, distanceKm: Infinity, index: -1 };
+  let nearest = { stop: route.stops[0], distanceKm: Infinity, index: 0 };
+  route.stops.forEach((stop, index) => {
+    const distanceKm = haversineKm(lat, lng, stop.lat, stop.lng);
+    if (distanceKm < nearest.distanceKm) nearest = { stop, distanceKm, index };
+  });
+  return nearest;
+}
+
+function routeDirection(route, startIndex) {
+  if (!route?.stops?.length) return 'Route not specified';
+  const first = route.stops[0]?.name;
+  const last = route.stops[route.stops.length - 1]?.name;
+  if (route.loop) return `Round trip ${first || route.name}`;
+  if (startIndex === 0) return `${first} to ${last}`;
+  if (startIndex === route.stops.length - 1) return `${last} to ${first}`;
+  return route.name;
+}
+
+function tripEpoch(trip) {
+  if (trip.startedAtMs) return Number(trip.startedAtMs);
+  const parsed = Date.parse(trip.startedAt || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function tripSeconds(trip) {
+  if (Number(trip.durationSeconds)) return Number(trip.durationSeconds);
+  const parts = String(trip.duration || '').split(':').map(Number);
+  return parts.length === 2 ? (parts[0] || 0) * 60 + (parts[1] || 0) : 0;
+}
+
+function DriverAnalytics({ trips }) {
+  const byDay = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - i));
+    const count = trips.filter((trip) => {
+      const value = tripEpoch(trip);
+      if (!value) return false;
+      const tripDate = new Date(value);
+      return tripDate.toDateString() === date.toDateString();
+    }).length;
+    return { label: date.toLocaleDateString([], { weekday: 'short' }), count };
+  });
+
+  const routeCounts = trips.reduce((counts, trip) => {
+    const route = trip.routeDirection || trip.routeName || 'Unknown route';
+    counts[route] = (counts[route] || 0) + 1;
+    return counts;
+  }, {});
+  const routes = Object.entries(routeCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const durations = trips.map(tripSeconds);
+  const speeds = trips.map((trip) => Number(trip.averageSpeedKmh) || 0);
+  const completed = trips.filter((trip) => trip.destinationReached || trip.status === 'Finished route' || trip.status === 'Round trip completed').length;
+  const today = byDay[6].count;
+  const avgDuration = trips.length ? durations.reduce((sum, value) => sum + value, 0) / trips.length : 0;
+  const avgSpeed = trips.length ? speeds.reduce((sum, value) => sum + value, 0) / trips.length : 0;
+  const completionRate = trips.length ? Math.round(completed / trips.length * 100) : 0;
+  const durationMax = Math.max(...durations, 1);
+  const speedMax = Math.max(...speeds, 1);
+  const dayMax = Math.max(...byDay.map((item) => item.count), 1);
+  const routeMax = Math.max(...routes.map(([, count]) => count), 1);
+
+  const BarChart = ({ data, label, valueKey, max, suffix = '', color = '#2563eb' }) => (
+    <div>
+      <p className="mb-2 text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>{label}</p>
+      <div className="flex h-24 items-end gap-2 rounded-xl border px-2 pt-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
+        {data.map((item, index) => (
+          <div key={`${item.label || index}-${index}`} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+            <span className="text-[8px] font-bold" style={{ color: 'var(--lo-text)' }}>{item[valueKey]}{suffix}</span>
+            <div className="w-full rounded-t-sm transition-[height] duration-300" style={{ height: `${Math.max(8, item[valueKey] / max * 68)}px`, background: color }} />
+            <span className="truncate text-[8px]" style={{ color: 'var(--lo-text-secondary)' }}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const routeData = routes.map(([label, count]) => ({ label: label.length > 16 ? `${label.slice(0, 16)}…` : label, count }));
+  const speedData = trips.slice(-7).map((trip, index) => ({ label: String(index + 1), speed: Number(trip.averageSpeedKmh) || 0 }));
+  const durationData = trips.slice(-7).map((trip, index) => ({ label: String(index + 1), duration: Math.round(tripSeconds(trip) / 60) }));
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-1.5">
+        {[
+          { label: "Today's trips", value: today },
+          { label: 'Completion rate', value: `${completionRate}%` },
+          { label: 'Average duration', value: fmtDuration(Math.round(avgDuration)) },
+          { label: 'Average speed', value: `${avgSpeed.toFixed(1)} km/h` },
+        ].map((metric) => (
+          <div key={metric.label} className="rounded-xl border px-2 py-2 text-center" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>{metric.value}</p>
+            <p className="text-[8px] uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>{metric.label}</p>
+          </div>
+        ))}
+      </div>
+      <BarChart data={byDay} label="Trips in the last 7 days" valueKey="count" max={dayMax} />
+      <BarChart data={durationData} label="Recent trip duration (minutes)" valueKey="duration" max={Math.max(...durationData.map((item) => item.duration), 1)} suffix="m" color="#0ea5e9" />
+      <BarChart data={speedData} label="Recent average speed (km/h)" valueKey="speed" max={speedMax} suffix="" color="#10b981" />
+      <BarChart data={routeData} label="Most ridden routes" valueKey="count" max={routeMax} color="#8b5cf6" />
+      <div>
+        <p className="mb-2 text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>Duration distribution</p>
+        <div className="flex gap-1 rounded-xl border p-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
+          {[...Array(10)].map((_, index) => {
+            const bandStart = durationMax / 10 * index;
+            const bandEnd = durationMax / 10 * (index + 1);
+            const count = durations.filter((value) => value >= bandStart && value < bandEnd).length;
+            return (
+              <div key={index} className="flex-1 text-center">
+                <div className="mx-auto w-full rounded-t bg-blue-500" style={{ height: `${Math.max(3, count / Math.max(trips.length, 1) * 56)}px` }} />
+                <span className="text-[7px]" style={{ color: 'var(--lo-text-secondary)' }}>{Math.round(bandStart / 60)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {routes[0] && <p className="rounded-xl px-3 py-2 text-[10px] leading-relaxed" style={{ background: 'rgba(37,99,235,0.08)', color: 'var(--lo-text)' }}>
+        <TrendingUp size={12} className="mr-1 inline" /> Your busiest route is <strong>{routes[0][0]}</strong>, with {routes[0][1]} recorded {routes[0][1] === 1 ? 'trip' : 'trips'}.
+      </p>}
+    </div>
+  );
+}
+
+export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer, onCloseDrawer, collapsed, onToggleCollapse, radioLogs = [], playingRadioId = '', utilityProfile }) {
   const { profile, plates, activePlate, setPlates, setActivePlate, updateDetails } = useAuth();
 
   const [routeId, setRouteId] = useState('');
@@ -73,6 +200,10 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   const [tripSort, setTripSort] = useState({ field: 'startedAt', dir: 'desc' });
   const [editingTrip, setEditingTrip] = useState(null);
   const [tripDraft, setTripDraft] = useState({ revenue: '', income: '', gas: '', others: '' });
+  const [deleteTripId, setDeleteTripId] = useState(null);
+  const [selectedTrips, setSelectedTrips] = useState([]);
+  const [selectedAnnouncements, setSelectedAnnouncements] = useState([]);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState('');
 
   // Announcements
   const [myAnnouncements, setMyAnnouncements] = useState([]);
@@ -81,6 +212,8 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   const [announceMessage, setAnnounceMessage] = useState('');
   const [editingAnnounce, setEditingAnnounce] = useState(null);
   const [announceDraft, setAnnounceDraft] = useState({ title: '', message: '' });
+  const [announcementTab, setAnnouncementTab] = useState('mine');
+  const [deleteAnnouncementId, setDeleteAnnouncementId] = useState(null);
 
   const refreshAnnouncements = () => {
     if (profile?.uid) setMyAnnouncements(getDriverAnnouncements(profile.uid));
@@ -99,6 +232,8 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   const routesRef = useRef(routes);
   const routeIdRef = useRef(routeId);
   const miniMapRef = useRef(null);
+  const runStatsRef = useRef(null);
+  const completeTripRef = useRef(null);
 
   useEffect(() => { routesRef.current = routes; }, [routes]);
   useEffect(() => { routeIdRef.current = routeId; }, [routeId]);
@@ -111,6 +246,54 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   const pushFix = useCallback((fix) => {
     latestFixRef.current = fix;
     setTelemetry({ lat: fix.lat, lng: fix.lng, speed: fix.speed, heading: fix.heading });
+
+    const run = runStatsRef.current;
+    if (run && fix.lat != null && fix.lng != null) {
+      if (run.lastFix && !simFlagRef.current) {
+        const distanceKm = haversineKm(run.lastFix.lat, run.lastFix.lng, fix.lat, fix.lng);
+        const elapsedHours = Math.max(0, (fix.timestamp - run.lastFix.timestamp) / 3_600_000);
+        if (distanceKm < 2 && elapsedHours < 0.01) run.distanceKm += distanceKm;
+      }
+      run.lastFix = fix;
+      if (Number.isFinite(fix.speed)) run.speedSamples.push(Math.max(0, fix.speed));
+
+      const route = routesRef.current.find((item) => item.id === routeIdRef.current);
+      if (route?.stops?.length) {
+        const nearest = nearestStop(route, fix.lat, fix.lng);
+        run.nearestStop = nearest;
+        const start = route.stops[0];
+        const end = route.stops[route.stops.length - 1];
+        if (!run.startStop && nearest.stop) {
+          run.startStop = nearest.stop;
+          run.startIndex = nearest.index;
+          run.destinationIndex = nearest.index === 0 ? route.stops.length - 1 : 0;
+        }
+
+        const destination = route.stops[run.destinationIndex];
+        if (destination && nearest.stop?.id === destination.id && nearest.distanceKm <= DESTINATION_RADIUS_KM) {
+          run.destinationReached = true;
+        }
+
+        const reachedStart = start && haversineKm(fix.lat, fix.lng, start.lat, start.lng) <= DESTINATION_RADIUS_KM;
+        const reachedEnd = end && haversineKm(fix.lat, fix.lng, end.lat, end.lng) <= DESTINATION_RADIUS_KM;
+        const loopRoute = route.loop || haversineKm(start.lat, start.lng, end.lat, end.lng) < 0.1;
+        const fullLoopDistance = loopRoute ? pathLengthKm(route.loop ? [...route.stops.map((stop) => [stop.lat, stop.lng]), [start.lat, start.lng]] : route.stops.map((stop) => [stop.lat, stop.lng])) : 0;
+        const completedRoundTrip = route.loop && run.distanceKm >= fullLoopDistance * 0.85 && reachedStart && run.startStop?.id !== start.id
+          ? false
+          : route.loop && run.distanceKm >= fullLoopDistance * 0.85 && reachedStart;
+
+        if ((completedRoundTrip || (run.destinationReached && !route.loop && nearest.stop?.id === destination?.id)) && !run.autoCompleted) {
+          run.autoCompleted = true;
+          window.setTimeout(() => completeTripRef.current?.('auto'), 300);
+        } else if (!route.loop && reachedStart && !reachedEnd && run.destinationReached) {
+          run.returnedToStart = true;
+          if (!run.autoCompleted) {
+            run.autoCompleted = true;
+            window.setTimeout(() => completeTripRef.current?.('auto'), 300);
+          }
+        }
+      }
+    }
   }, []);
 
   const startGeoWatch = useCallback(() => {
@@ -154,7 +337,17 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
       const points = route.stops.map((s) => [s.lat, s.lng]);
       const state = simRef.current;
       const speedKmh = 22 + 9 * Math.abs(Math.sin(state.travelledKm * 2.2)) + Math.random() * 4;
-      state.travelledKm = (state.travelledKm + speedKmh * (TICK_MS / 3_600_000)) % pathLengthKm(points);
+      const routeLengthKm = pathLengthKm(points);
+      if (routeLengthKm <= 0) return;
+      const incrementKm = speedKmh * (TICK_MS / 3_600_000);
+      const previousTravelledKm = state.travelledKm;
+      const nextTravelledKm = previousTravelledKm + incrementKm;
+      state.travelledKm = nextTravelledKm % routeLengthKm;
+      if (runStatsRef.current) {
+        runStatsRef.current.distanceKm += nextTravelledKm >= routeLengthKm
+          ? routeLengthKm - previousTravelledKm + (nextTravelledKm % routeLengthKm)
+          : incrementKm;
+      }
       const point = pointAtDistance(points, state.travelledKm);
       if (!point) return;
       const fix = { lat: point.lat, lng: point.lng, speed: Math.max(0, speedKmh + (Math.random() - 0.5) * 4), heading: point.bearing, timestamp: Date.now() };
@@ -179,6 +372,19 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
     setError('');
     metaRef.current = { vehicleId: vid, routeId: routeIdRef.current };
     isLiveRef.current = true;
+    runStatsRef.current = {
+      startedAtMs: Date.now(),
+      lastFix: null,
+      distanceKm: 0,
+      speedSamples: [],
+      startStop: null,
+      startIndex: -1,
+      destinationIndex: -1,
+      destinationReached: false,
+      returnedToStart: false,
+      nearestStop: null,
+      autoCompleted: false,
+    };
     setIsLive(true);
     setStartedAt(Date.now());
     setElapsed(0);
@@ -189,21 +395,51 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
     setToast('Trip started');
   };
 
-  const endTrip = () => {
+  const finalizeTrip = useCallback((completionType = 'manual') => {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
     stopGeoWatch();
     const vid = metaRef.current?.vehicleId;
     if (vid) socket.emit('endTrip', { vehicleId: vid });
 
     if (startedAt) {
+      const endedAtMs = Date.now();
+      const run = runStatsRef.current || {};
+      const route = routesRef.current.find((item) => item.id === routeIdRef.current);
+      const durationSeconds = Math.max(0, Math.floor((endedAtMs - startedAt) / 1000));
+      const averageSpeed = durationSeconds > 0 ? ((run.distanceKm || 0) / durationSeconds) * 3600 : 0;
+      const destinationReached = Boolean(run.destinationReached || (route?.loop && completionType === 'auto'));
+      const nearestStop = run.nearestStop?.stop || null;
+      const nearestStopDistanceKm = run.nearestStop?.distanceKm ?? Infinity;
+      const stoppedAt = destinationReached ? 'Finished route' : nearestStop?.name || 'Location unavailable';
+      const roundTrip = Boolean(route?.loop || run.returnedToStart);
+      const direction = route?.loop
+        ? `Round Trip ${route.stops?.[0]?.name || route.name}`
+        : run.returnedToStart
+          ? `${route?.stops?.[0]?.name} to ${route?.stops?.[route.stops.length - 1]?.name} then back`
+          : run.startStop
+            ? routeDirection(route, run.startIndex)
+            : route.name;
       const trip = {
         id: Date.now().toString(),
         vehicleId: vid,
         routeId: routeIdRef.current,
         routeName: routesRef.current.find((r) => r.id === routeIdRef.current)?.name || '—',
+        routeDirection: direction,
+        roundTrip,
+        startedAtMs: startedAt,
+        endedAtMs,
         startedAt: new Date(startedAt).toLocaleString(),
-        endedAt: new Date().toLocaleString(),
-        duration: fmtDuration(Math.floor((Date.now() - startedAt) / 1000)),
+        endedAt: new Date(endedAtMs).toLocaleString(),
+        durationSeconds,
+        duration: fmtDuration(durationSeconds),
+        averageSpeedKmh: Number(averageSpeed.toFixed(1)),
+        distanceKm: Number((run.distanceKm || 0).toFixed(2)),
+        destinationReached,
+        status: destinationReached ? 'Finished route' : 'Stopped early',
+        stoppedAt,
+        nearestStopName: nearestStop?.name || '',
+        nearestStopDistanceKm: Number.isFinite(nearestStopDistanceKm) ? Number(nearestStopDistanceKm.toFixed(2)) : null,
+        completionType,
         fixes: sentCount,
         pokesReceived: 0,
         revenue: 0,
@@ -221,7 +457,11 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
     setStartedAt(null);
     setGpsStatus('idle');
     setAccuracy(null);
-  };
+    runStatsRef.current = null;
+  }, [saveTrip, sentCount, startedAt, stopGeoWatch]);
+
+  completeTripRef.current = finalizeTrip;
+  const endTrip = () => finalizeTrip('manual');
 
   const toggleSim = () => {
     const next = !simFlagRef.current;
@@ -232,14 +472,6 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
     else if (isLiveRef.current) startGeoWatch();
     setToast(next ? 'GPS simulator ON' : 'GPS simulator OFF');
   };
-
-  const setAvailability = useCallback((nextFull) => {
-    setFull(nextFull);
-    fullRef.current = nextFull;
-    const meta = metaRef.current;
-    if (meta) socket.emit('setAvailability', { vehicleId: meta.vehicleId, full: nextFull });
-    setToast(nextFull ? 'Marked Full' : 'Marked Vacant');
-  }, []);
 
   useEffect(() => {
     if (!isLive) return undefined;
@@ -279,6 +511,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   const removeAnnouncement = (id) => {
     deleteAnnouncement(id);
     refreshAnnouncements();
+    setDeleteAnnouncementId(null);
     setToast('Announcement deleted');
   };
 
@@ -302,7 +535,6 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   /* ---- Trip stats ---- */
   const tripStats = useMemo(() => {
     if (trips.length === 0) return null;
-    const durations = trips.map((t) => { const p = t.duration.split(':'); return (parseInt(p[0]) || 0) * 60 + (parseInt(p[1]) || 0); });
     const totalRevenue = trips.reduce((s, t) => s + (Number(t.revenue) || 0), 0);
     const totalIncome = trips.reduce((s, t) => s + (Number(t.income) || 0), 0);
     const totalGas = trips.reduce((s, t) => s + (Number(t.gas) || 0), 0);
@@ -330,7 +562,24 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
     const next = trips.filter((t) => t.id !== id);
     setTrips(next);
     localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+    setDeleteTripId(null);
     setToast('Trip removed');
+  };
+
+  const confirmBulkDelete = () => {
+    if (bulkDeleteConfirm === 'trips') {
+      const next = trips.filter((trip) => !selectedTrips.includes(trip.id));
+      setTrips(next);
+      localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+      setToast(`${selectedTrips.length} trips removed`);
+      setSelectedTrips([]);
+    } else {
+      selectedAnnouncements.forEach(deleteAnnouncement);
+      refreshAnnouncements();
+      setToast(`${selectedAnnouncements.length} announcements deleted`);
+      setSelectedAnnouncements([]);
+    }
+    setBulkDeleteConfirm('');
   };
 
   /* ---- Detail editor draft auto-sync ---- */
@@ -341,22 +590,16 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
     <>
       {/* Tab 1: My Details (editable) */}
       <Section icon={UserRound} title="My Details" tint="primary">
-        <InfoRow label="Name" value={profile?.fullName} />
-        <InfoRow label="Email" value={profile?.email} />
-        <InfoRow label="Mobile" value={profile?.phone || '—'} />
-        <InfoRow label="Account" value="driver" />
-        <div className="flex items-center justify-between gap-2 pt-0.5">
-          <span className="text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>Trip</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
-            style={{ borderColor: isLive ? 'var(--lo-success)' : 'var(--lo-card-border)', background: isLive ? 'var(--lo-success)' : 'var(--lo-card)', color: isLive ? 'var(--lo-text)' : 'var(--lo-text-secondary)' }}>
-            {isLive && <PulseDot color="emerald" />}{isLive ? 'On air' : 'Offline'}
-          </span>
-        </div>
-        <button type="button" onClick={openDetailEditor}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl border py-2 text-[11px] font-bold transition hover:opacity-80"
-          style={{ borderColor: 'var(--lo-primary)', color: 'var(--lo-primary)' }}>
-          <Pencil size={12} /> Edit Details
-        </button>
+        <ProfileScreen
+          profile={profile}
+          role="driver"
+          onEdit={openDetailEditor}
+          fallbackName="Driver"
+          stats={[
+            { label: 'Account', value: 'Driver' },
+            { label: 'Trip', value: isLive ? 'On air' : 'Offline' },
+          ]}
+        />
       </Section>
 
       <Section id="driver-vehicles" icon={Bus} title="My Vehicles" tint="primary">
@@ -379,11 +622,11 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
           </span>
         </label>
         <button type="button" onClick={isLive ? endTrip : beginTrip}
-          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold shadow-lg transition hover:brightness-95 ${isLive ? 'bg-red-500 text-slate-900' : 'bg-emerald-500 text-slate-900'}`}>
+          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold shadow-lg   ${isLive ? 'bg-red-500 text-slate-900' : 'bg-emerald-500 text-slate-900'}`}>
           {isLive ? <><Square size={14} /> End Trip</> : <><Play size={14} /> Start Trip</>}
         </button>
         <button type="button" onClick={toggleSim}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[11px] font-semibold transition"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[11px] font-semibold "
           style={{ borderColor: simEnabled ? 'var(--lo-primary)' : 'var(--lo-card-border)', background: simEnabled ? 'rgba(37,99,235,0.1)' : 'var(--lo-card)', color: 'var(--lo-text)' }}>
           <Satellite size={13} /> {simEnabled ? 'GPS Sim ON' : 'GPS Simulator'}
         </button>
@@ -417,6 +660,13 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>{trips.length === 0 ? 'No trips yet. Start a trip!' : 'No matches.'}</p>
         ) : (
           <div className="max-h-72 space-y-1.5 overflow-y-auto">
+            <div className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.06)' }}>
+              <label className="flex items-center gap-2 text-[9px] font-bold" style={{ color: 'var(--lo-text-secondary)' }}>
+                <input type="checkbox" checked={filteredTrips.length > 0 && filteredTrips.every((trip) => selectedTrips.includes(trip.id))}
+                  onChange={(event) => setSelectedTrips(event.target.checked ? filteredTrips.map((trip) => trip.id) : [])} /> Select all
+              </label>
+              {selectedTrips.length > 0 && <button type="button" onClick={() => setBulkDeleteConfirm('trips')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedTrips.length}</button>}
+            </div>
             {/* Table header */}
             <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1 px-2 text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>
               <span>Trip</span><span>Duration</span><span>Revenue</span><span></span>
@@ -425,14 +675,41 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
               <div key={t.id} className="rounded-xl border px-2.5 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
+                    <input type="checkbox" checked={selectedTrips.includes(t.id)}
+                      onChange={(event) => setSelectedTrips((current) => event.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id))} className="mr-2" />
                     <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{t.vehicleId} · {t.routeName}</p>
                     <p className="text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{t.startedAt} → {t.endedAt}</p>
-                  </div>
+                <p className="mt-1 truncate text-[9px] font-semibold" style={{ color: 'var(--lo-primary)' }}>{t.routeDirection || t.routeName}</p>
+              </div>
                   <KebabMenu items={[
                     { icon: Banknote, label: 'Edit finances', onClick: () => { setEditingTrip(t); setTripDraft({ revenue: String(t.revenue || ''), income: String(t.income || ''), gas: String(t.gas || ''), others: String(t.others || '') }); } },
-                    { icon: Trash2, label: 'Remove', danger: true, onClick: () => removeTrip(t.id) },
+                    { icon: Trash2, label: 'Delete', danger: true, onClick: () => setDeleteTripId(t.id) },
                   ]} />
                 </div>
+                {deleteTripId === t.id && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-red-300/60 bg-red-50 px-2.5 py-2">
+                    <p className="text-[10px] font-semibold text-red-700">Delete this trip?</p>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button type="button" onClick={() => setDeleteTripId(null)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold text-slate-700">Cancel</button>
+                      <button type="button" onClick={() => removeTrip(t.id)} className="rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white">Delete</button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-2 grid grid-cols-3 gap-1">
+                  {[
+                    { label: 'Duration', val: t.duration || fmtDuration(t.durationSeconds || 0) },
+                    { label: 'Average', val: `${t.averageSpeedKmh || 0} km/h` },
+                    { label: 'Status', val: t.status || (t.destinationReached ? 'Finished route' : 'Stopped early') },
+                  ].map((detail) => (
+                    <div key={detail.label} className="rounded-lg border px-1.5 py-1.5 text-center" style={{ borderColor: 'var(--lo-card-border)' }}>
+                      <p className="truncate font-bold text-[10px]" style={{ color: 'var(--lo-text)' }}>{detail.val}</p>
+                      <p className="text-[8px] uppercase" style={{ color: 'var(--lo-text-secondary)' }}>{detail.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {!t.destinationReached && t.stoppedAt && (
+                  <p className="mt-1.5 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>Stopped at: <span className="font-semibold" style={{ color: 'var(--lo-text)' }}>{t.stoppedAt}</span></p>
+                )}
                 <div className="mt-1.5 grid grid-cols-4 gap-1">
                   {[{ label: 'Revenue', val: `₱${t.revenue || 0}` }, { label: 'Income', val: `₱${t.income || 0}` }, { label: 'Gas', val: `₱${t.gas || 0}` }, { label: 'Others', val: `₱${t.others || 0}` }].map((f) => (
                     <div key={f.label} className="rounded-lg px-1.5 py-1 text-center" style={{ background: 'rgba(37,99,235,0.05)' }}>
@@ -459,101 +736,133 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
             <div className="mt-1 rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.08)' }}>
               <InfoRow label="Net" value={<span className={`font-bold ${tripStats.net >= 0 ? 'text-slate-900' : 'text-slate-900'}`}>₱{tripStats.net}</span>} />
             </div>
+            <div className="pt-2"><DriverAnalytics trips={trips} /></div>
           </div>
         ) : (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>Complete trips to see stats.</p>
         )}
       </Section>
 
-      <Section id="driver-status" icon={Users} title="Passenger Status" tint={full ? 'critical' : 'success'}>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setAvailability(false)} aria-pressed={!full}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition ${!full ? 'shadow-lg' : 'border hover:opacity-80'}`}
-            style={!full ? { background: 'var(--lo-success)', color: 'var(--lo-text)' } : { borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' }}>
-            <Users size={14} /> Still Vacant
-          </button>
-          <button type="button" onClick={() => setAvailability(true)} aria-pressed={full}
-            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${full ? 'border border-red-500 bg-red-500 text-slate-900 shadow-lg' : 'border hover:opacity-80'}`}
-            style={!full ? { borderColor: 'var(--lo-card-border)', color: 'var(--lo-text)' } : undefined}>
-            <Users size={14} /> Full
-          </button>
+      {/* Announcements */}
+      <Section icon={Megaphone} title="Announcements" tint="primary" defaultOpen={false}>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>Make announcement</p>
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Title</span>
+              <input value={announceTitle} onChange={(e) => setAnnounceTitle(e.target.value)} placeholder="e.g. Route diversion today"
+                className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
+                style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Message</span>
+              <textarea value={announceMessage} onChange={(e) => setAnnounceMessage(e.target.value)} placeholder="Details for commuters…" rows={3}
+                className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
+                style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
+            </label>
+            <button type="button" onClick={submitAnnouncement} disabled={!announceTitle.trim() || !announceMessage.trim()}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white disabled:opacity-40">
+              <Megaphone size={13} /> Post Announcement
+            </button>
+          </div>
+
+          <div className="border-t pt-3" style={{ borderColor: 'var(--lo-card-border)' }}>
+            <div className="relative mb-2 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+              <span
+                className="absolute bottom-1 top-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm transition-transform duration-200"
+                style={{ transform: announcementTab === 'mine' ? 'translateX(0)' : 'translateX(calc(100% + 4px))' }}
+              />
+              {[
+                ['mine', 'My announcements'],
+                ['all', 'All announcements'],
+              ].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => setAnnouncementTab(id)}
+                  className="relative z-10 rounded-lg py-1.5 text-[10px] font-bold transition-colors"
+                  style={{ color: announcementTab === id ? 'var(--lo-primary)' : 'var(--lo-text-secondary)' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {announcementTab === 'mine' && (
+              myAnnouncements.length === 0 ? (
+                <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
+              ) : (
+                <div className="max-h-64 space-y-1.5 overflow-y-auto lo-tab-content">
+                  <div className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.06)' }}>
+                    <label className="flex items-center gap-2 text-[9px] font-bold" style={{ color: 'var(--lo-text-secondary)' }}>
+                      <input type="checkbox" checked={myAnnouncements.length > 0 && myAnnouncements.every((item) => selectedAnnouncements.includes(item.id))}
+                        onChange={(event) => setSelectedAnnouncements(event.target.checked ? myAnnouncements.map((item) => item.id) : [])} /> Select all
+                    </label>
+                    {selectedAnnouncements.length > 0 && <button type="button" onClick={() => setBulkDeleteConfirm('announcements')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedAnnouncements.length}</button>}
+                  </div>
+                  {myAnnouncements.map((a) => (
+                    <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <input type="checkbox" checked={selectedAnnouncements.includes(a.id)}
+                            onChange={(event) => setSelectedAnnouncements((current) => event.target.checked ? [...current, a.id] : current.filter((id) => id !== a.id))} className="mr-2" />
+                          <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
+                          <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
+                          <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.plate} · {a.createdAt}</p>
+                        </div>
+                        <KebabMenu items={[
+                          { icon: Pencil, label: 'Edit', onClick: () => { setEditingAnnounce(a); setAnnounceDraft({ title: a.title, message: a.message }); } },
+                          { icon: Trash2, label: 'Delete', danger: true, onClick: () => setDeleteAnnouncementId(a.id) },
+                        ]} />
+                      </div>
+                      {deleteAnnouncementId === a.id && (
+                        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5">
+                          <span className="text-[9px] font-semibold text-red-700">Delete this announcement?</span>
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => setDeleteAnnouncementId(null)} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold text-slate-700">Cancel</button>
+                            <button type="button" onClick={() => removeAnnouncement(a.id)} className="rounded-md bg-red-500 px-2 py-1 text-[9px] font-bold text-white">Delete</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {announcementTab === 'all' && (
+              allAnnouncements.length === 0 ? (
+                <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements.</p>
+              ) : (
+                <div className="max-h-64 space-y-1.5 overflow-y-auto lo-tab-content">
+                  {allAnnouncements.map((a) => (
+                    <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
+                      <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
+                      <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
+                      <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.driverName} · {a.plate} · {a.createdAt}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
         </div>
       </Section>
-
-      {/* Tab: Make Announcement */}
-      <Section icon={Megaphone} title="Make Announcement" tint="primary" defaultOpen={false}>
-        <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Title</span>
-          <input value={announceTitle} onChange={(e) => setAnnounceTitle(e.target.value)} placeholder="e.g. Route diversion today"
-            className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
-            style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase" style={{ color: 'var(--lo-text-secondary)' }}>Message</span>
-          <textarea value={announceMessage} onChange={(e) => setAnnounceMessage(e.target.value)} placeholder="Details for commuters…" rows={3}
-            className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/25"
-            style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)', color: 'var(--lo-text)' }} />
-        </label>
-        <button type="button" onClick={submitAnnouncement} disabled={!announceTitle.trim() || !announceMessage.trim()}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-40">
-          <Megaphone size={13} /> Post Announcement
-        </button>
+      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false}>
+        <EmergencyRadio logs={radioLogs} playingId={playingRadioId} />
       </Section>
-
-      {/* Tab: My Announcements */}
-      <Section icon={Megaphone} title="My Announcements" tint="primary" defaultOpen={false}>
-        {myAnnouncements.length === 0 ? (
-          <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
-        ) : (
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
-            {myAnnouncements.map((a) => (
-              <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
-                    <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
-                    <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.plate} · {a.createdAt}</p>
-                  </div>
-                  <KebabMenu items={[
-                    { icon: Pencil, label: 'Edit', onClick: () => { setEditingAnnounce(a); setAnnounceDraft({ title: a.title, message: a.message }); } },
-                    { icon: Trash2, label: 'Delete', danger: true, onClick: () => removeAnnouncement(a.id) },
-                  ]} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* Tab: All Announcements (driver sees all too) */}
-      <Section icon={Megaphone} title="All Announcements" tint="success" defaultOpen={false}>
-        {allAnnouncements.length === 0 ? (
-          <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements.</p>
-        ) : (
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
-            {allAnnouncements.map((a) => (
-              <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
-                <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
-                <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.driverName} · {a.plate} · {a.createdAt}</p>
-              </div>
-            ))}
-          </div>
-        )}
+      <Section icon={CloudRain} title="Weather & Analytics" tint="primary" defaultOpen={false}>
+        <WeatherTab latitude={telemetry.lat} longitude={telemetry.lng} />
       </Section>
     </>
   );
 
   const dockItems = [
+    { id: 'radio', label: 'Hold emergency radio', icon: Radio, radio: true },
     { id: 'trip', label: 'Trip controls', icon: Play, target: 'driver-start-ride' },
     { id: 'pokes', label: 'Poke alerts', icon: Hand, disabled: !activePlate, returnToMap: true, onSelect: () => setPokesOpen(true) },
-    { id: 'status', label: 'Passenger status', icon: Users, target: 'driver-status' },
     { id: 'trips', label: 'Trip history', icon: Clock, target: 'driver-trips' },
   ];
 
   /* ======================== MAP STAGE ======================== */
   return (
-    <AppShell brand="Driver" panel={panel} dockItems={dockItems} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
+    <AppShell brand="Driver" panel={panel} dockItems={dockItems} utilityProfile={utilityProfile} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
       <section className="absolute inset-0">
         <MapContainer center={ILOILO_CENTER} zoom={13} className="h-full w-full" zoomControl={false} ref={miniMapRef}>
           <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -575,8 +884,26 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
         </div>
 
         <div className="absolute right-2 top-2 z-[1000] lg:right-3 lg:top-3">
+          {isLive && (
+            <button
+              type="button"
+              onClick={() => {
+                const nextFull = !full;
+                setFull(nextFull);
+                fullRef.current = nextFull;
+                if (metaRef.current?.vehicleId) {
+                  socket.emit('setAvailability', { vehicleId: metaRef.current.vehicleId, full: nextFull });
+                }
+                setToast(nextFull ? 'Marked full' : 'Marked vacant');
+              }}
+              className="mr-2 h-10 rounded-full border px-3 text-[11px] font-bold backdrop-blur"
+              style={{ borderColor: full ? '#ef4444' : '#10b981', background: 'var(--lo-panel)', color: full ? '#ef4444' : '#10b981' }}
+            >
+              {full ? 'Full' : 'Vacant'}
+            </button>
+          )}
           <button type="button" onClick={() => setFollow((f) => !f)}
-            className="flex h-10 items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold backdrop-blur transition"
+            className="flex h-10 items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold backdrop-blur "
             style={{ borderColor: follow ? 'var(--lo-primary)' : 'var(--lo-card-border)', background: follow ? 'var(--lo-bg)' : 'var(--lo-panel)', color: follow ? 'var(--lo-primary)' : 'var(--lo-text)' }}>
             <Crosshair size={13} /> {follow ? 'Following' : 'Free pan'}
           </button>
@@ -594,22 +921,27 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
       </section>
 
       <div className="pointer-events-none fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-2 z-[1200] flex flex-col items-end gap-2.5 sm:bottom-7 sm:right-4 lg:bottom-8 lg:right-5">
-        <DriverPokes plate={activePlate} open={pokesOpen} onOpenChange={setPokesOpen} className="pointer-events-auto" />
-        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border p-1.5 shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
-          <button type="button" onClick={() => setAvailability(false)} aria-pressed={!full}
-            className={`flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${!full ? 'shadow-lg' : 'hover:opacity-80'}`}
-            style={!full ? { background: 'var(--lo-success)', color: 'var(--lo-text)' } : { color: 'var(--lo-text)' }}>
-            <Users size={14} /> Still Vacant
-          </button>
-          <button type="button" onClick={() => setAvailability(true)} aria-pressed={full}
-            className={`flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${full ? 'bg-red-500 text-slate-900 shadow-lg' : 'text-slate-900 hover:opacity-80'}`}
-            style={!full ? { color: 'var(--lo-text)' } : undefined}>
-            <Users size={14} /> Full
-          </button>
-        </div>
+        <DriverPokes
+          plate={activePlate}
+          active={isLive}
+          position={{ lat: telemetry.lat, lng: telemetry.lng }}
+          open={pokesOpen}
+          onOpenChange={setPokesOpen}
+          className="pointer-events-auto"
+        />
       </div>
 
       <ConfirmToast message={toast} onClose={() => setToast('')} />
+      {bulkDeleteConfirm && (
+        <div className="fixed inset-x-4 bottom-5 z-[2200] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
+          <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
+          <p className="mt-1 text-[10px] text-slate-500">Delete the selected {bulkDeleteConfirm}?</p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" onClick={() => setBulkDeleteConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">Cancel</button>
+            <button type="button" onClick={confirmBulkDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
+          </div>
+        </div>
+      )}
 
       {/* ---- Edit My Details modal ---- */}
       {editingDetails && (
@@ -617,7 +949,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
           <div role="dialog" aria-modal="true" aria-label="Edit details" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Details</h3>
-              <button type="button" onClick={() => setEditingDetails(false)} aria-label="Close edit details dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
+              <button type="button" onClick={() => setEditingDetails(false)} aria-label="Close edit details dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               <label className="block">
@@ -635,7 +967,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <button type="button" onClick={() => setEditingDetails(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
-              <button type="button" onClick={saveDetails} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
+              <button type="button" onClick={saveDetails} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
         </div>
@@ -647,7 +979,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
           <div role="dialog" aria-modal="true" aria-label="Edit trip finances" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Trip Finances</h3>
-              <button type="button" onClick={() => setEditingTrip(null)} aria-label="Close trip finances dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
+              <button type="button" onClick={() => setEditingTrip(null)} aria-label="Close trip finances dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               {[
@@ -666,7 +998,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <button type="button" onClick={() => setEditingTrip(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
-              <button type="button" onClick={updateTripFinancials} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
+              <button type="button" onClick={updateTripFinancials} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
         </div>
@@ -678,7 +1010,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
           <div role="dialog" aria-modal="true" aria-label="Edit announcement" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Announcement</h3>
-              <button type="button" onClick={() => setEditingAnnounce(null)} aria-label="Close announcement dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"><X size={20} /></button>
+              <button type="button" onClick={() => setEditingAnnounce(null)} aria-label="Close announcement dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
             </header>
             <div className="space-y-3 p-4">
               <label className="block">
@@ -696,7 +1028,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
             </div>
             <footer className="flex justify-end gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <button type="button" onClick={() => setEditingAnnounce(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900">Cancel</button>
-              <button type="button" onClick={saveEditedAnnounce} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700">Save</button>
+              <button type="button" onClick={saveEditedAnnounce} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
         </div>

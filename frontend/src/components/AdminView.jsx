@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Bus,
-  CreditCard,
+  CloudRain,
   Hand,
   Loader2,
   MapPin,
@@ -10,17 +10,24 @@ import {
   Radio,
   Save,
   ShieldCheck,
+  ClipboardList,
   Trash2,
+  Inbox,
   Users,
   X,
 } from 'lucide-react';
-import AppShell, { InfoRow, Section } from './AppShell.jsx';
+import AppShell, { InfoRow, ProfileScreen, Section } from './AppShell.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { adminDeleteUser, adminUpdateUser, watchAllPokes, watchAllUsers } from '../services/adminService.js';
+import { adminDeletePoke, adminDeleteUser, adminUpdateUser, watchAllPokes, watchAllUsers } from '../services/adminService.js';
 import { firebaseReady, normalizePhone, normalizePlate } from '../services/authService.js';
+import { auth } from '../services/firebase.js';
 import { timeAgo } from '../services/pokeService.js';
-import { statusMeta } from '../utils/vehicle.js';
 import { SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
+import { createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAnnouncements } from '../services/announcementService.js';
+import { addAdminLog, clearAdminLogs, getAdminLogs } from '../services/adminActivityService.js';
+import EmergencyRadio from './EmergencyRadio.jsx';
+import WeatherTab from './WeatherTab.jsx';
+import { deleteUtilityInboxItem, getUtilityInbox, markUtilityInboxRead } from '../services/utilityInboxService.js';
 
 const ROLE_STYLES = {
   commuter: 'bg-slate-50 text-blue-600',
@@ -28,11 +35,82 @@ const ROLE_STYLES = {
   admin: 'bg-slate-50 text-slate-900',
 };
 
-const ROLE_ICONS = { commuter: Users, driver: Bus, admin: ShieldCheck };
-
 const emptyDraft = { fullName: '', phone: '', role: 'commuter', plates: '', activePlate: '' };
 
-export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, onCloseDrawer, drawerOpen, collapsed, onToggleCollapse }) {
+function FleetBarChart({ title, data, color = '#2563eb' }) {
+  const max = Math.max(...data.map((item) => Number(item.value) || 0), 1);
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+      <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">{title}</p>
+      <div className="flex h-28 items-end gap-2">
+        {data.map((item, index) => (
+          <div key={`${item.label}-${index}`} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+            <span className="text-[9px] font-bold text-slate-900">{item.value}</span>
+            <div className="w-full min-w-2 rounded-t-md transition-[height] duration-300" style={{ height: `${Math.max(6, item.value / max * 78)}px`, background: color }} />
+            <span className="max-w-full truncate text-[8px] text-slate-500">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FleetAnalytics({ rides, trips }) {
+  const now = new Date();
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    const rideCount = rides.filter((ride) => ride.rideAt && new Date(ride.rideAt).toDateString() === date.toDateString()).length;
+    const tripCount = trips.filter((trip) => (trip.startedAtMs || trip.startedAt) && new Date(trip.startedAtMs || trip.startedAt).toDateString() === date.toDateString()).length;
+    return { label: date.toLocaleDateString([], { weekday: 'short' }), value: rideCount + tripCount };
+  });
+  const routeCounts = {};
+  [...rides, ...trips].forEach((record) => {
+    const route = record.routeName || record.operatorName || record.routeDirection || 'Unknown';
+    routeCounts[route] = (routeCounts[route] || 0) + 1;
+  });
+  const routes = Object.entries(routeCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value]) => ({ label: label.length > 14 ? `${label.slice(0, 14)}…` : label, value }));
+  const vehicles = {};
+  [...rides, ...trips].forEach((record) => {
+    const plate = record.plate || record.vehicleId || 'Unknown';
+    vehicles[plate] = (vehicles[plate] || 0) + 1;
+  });
+  const vehicleData = Object.entries(vehicles).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value]) => ({ label, value }));
+  const completedTrips = trips.filter((trip) => trip.destinationReached || /finished|completed/i.test(trip.status || '')).length;
+  const completedRate = trips.length ? Math.round(completedTrips / trips.length * 100) : 0;
+  const speeds = trips.map((trip) => Number(trip.averageSpeedKmh) || 0).filter(Boolean);
+  const averageSpeed = speeds.length ? speeds.reduce((sum, value) => sum + value, 0) / speeds.length : 0;
+  const busiestDay = [...days].sort((a, b) => b.value - a.value)[0];
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          ['Recorded trips', trips.length],
+          ['Recorded rides', rides.length],
+          ['Trip completion', `${completedRate}%`],
+          ['Avg. PUV speed', `${averageSpeed.toFixed(1)} km/h`],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-slate-200 bg-white px-2 py-3 text-center">
+            <p className="text-base font-bold text-slate-900">{value}</p>
+            <p className="text-[8px] uppercase tracking-wide text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+      <FleetBarChart title="Fleet activity by day" data={days} />
+      <FleetBarChart title="Top routes" data={routes.length ? routes : [{ label: 'No routes', value: 0 }]} color="#7c3aed" />
+      <FleetBarChart title="Trips and rides by PUV" data={vehicleData.length ? vehicleData : [{ label: 'No PUVs', value: 0 }]} color="#0ea5e9" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Trip completion forecast</p>
+        <p className="mt-2 text-xs text-slate-700">{completedRate >= 80 ? 'Current fleet reliability is strong.' : 'Route completion is below target; review stopped trips.'}</p>
+        {busiestDay?.value > 0 && <p className="mt-1 text-[10px] text-slate-500">Peak activity is typically on {busiestDay.label}.</p>}
+      </div>
+    </div>
+  );
+}
+
+export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, onCloseDrawer, drawerOpen, collapsed, onToggleCollapse, radioLogs = [], playingRadioId = '', utilityProfile }) {
   const { profile } = useAuth();
   const [users, setUsers] = useState([]);
   const [pokes, setPokes] = useState([]);
@@ -42,10 +120,39 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
   const [roleFilter, setRoleFilter] = useState('all');
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState(emptyDraft);
+  const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmUid, setConfirmUid] = useState('');
   const [toast, setToast] = useState('');
   const [sort, setSort] = useState({ field: 'fullName', dir: 'asc' });
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [rides, setRides] = useState([]);
+  const [trips, setTrips] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementTab, setAnnouncementTab] = useState('make');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [editingAnnouncement, setEditingAnnouncement] = useState(null);
+  const [announcementDraft, setAnnouncementDraft] = useState({ title: '', message: '' });
+  const [confirmAnnouncementId, setConfirmAnnouncementId] = useState('');
+  const [recordConfirm, setRecordConfirm] = useState(null);
+  const [recordEdit, setRecordEdit] = useState(null);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectedAnnouncements, setSelectedAnnouncements] = useState([]);
+  const [selectedPokes, setSelectedPokes] = useState([]);
+  const [bulkConfirm, setBulkConfirm] = useState('');
+  const [adminLogs, setAdminLogs] = useState(() => getAdminLogs());
+  const [utilityInbox, setUtilityInbox] = useState(() => getUtilityInbox());
+
+  useEffect(() => {
+    const refreshInbox = () => setUtilityInbox(getUtilityInbox());
+    window.addEventListener('storage', refreshInbox);
+    window.addEventListener('lookout-utility-inbox-updated', refreshInbox);
+    return () => {
+      window.removeEventListener('storage', refreshInbox);
+      window.removeEventListener('lookout-utility-inbox-updated', refreshInbox);
+    };
+  }, []);
 
   useEffect(() => {
     if (!firebaseReady) { _setLoading(false); return undefined; }
@@ -61,6 +168,16 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
   useEffect(() => {
     if (!firebaseReady) return undefined;
     return watchAllPokes(setPokes, () => {});
+  }, []);
+
+  useEffect(() => {
+    const readStored = (key, fallback = []) => {
+      try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+      catch { return fallback; }
+    };
+    setRides(readStored('lo_recent_rides'));
+    setTrips(readStored('lo_driver_trips'));
+    setAnnouncements(getAllAnnouncements());
   }, []);
 
   useEffect(() => {
@@ -109,20 +226,126 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
     finally { setSaving(false); }
   };
 
+  const updateUserPassword = async () => {
+    if (!editing || newPassword.length < 6) {
+      setToast('Password must be at least 6 characters');
+      return;
+    }
+    setSaving(true);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL?.trim() || 'https://lookout-p8fw.onrender.com';
+      const idToken = await auth?.currentUser?.getIdToken();
+      const response = await fetch(`${backendUrl.replace(/\/+$/, '')}/admin/users/${encodeURIComponent(editing.uid)}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      if (!response.ok) throw new Error((await response.json()).error || 'Password update failed');
+      setNewPassword('');
+      setToast('User password updated');
+      addAdminLog('Updated user password', editing.email || editing.uid);
+    } catch (err) {
+      setToast(err?.message || 'Could not update password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const removeUser = async (user) => {
     try {
       await adminDeleteUser(user.uid);
+      addAdminLog('Deleted account', user.email || user.fullName || user.uid);
+      setAdminLogs(getAdminLogs());
       setToast(`Deleted ${user.email}`);
     } catch (err) { setToast(`Could not delete: ${err?.message ?? err}`); }
     finally { setConfirmUid(''); }
   };
 
+  const confirmBulkDelete = async () => {
+    if (bulkConfirm === 'users') {
+      for (const uid of selectedUsers.filter((id) => id !== profile?.uid)) await adminDeleteUser(uid).catch(() => {});
+      addAdminLog('Deleted accounts', `${selectedUsers.length} selected account(s)`);
+      setSelectedUsers([]);
+      setToast(`${selectedUsers.length} accounts deleted`);
+    } else if (bulkConfirm === 'announcements') {
+      selectedAnnouncements.forEach(deleteAnnouncement);
+      setAnnouncements(getAllAnnouncements());
+      addAdminLog('Deleted announcements', `${selectedAnnouncements.length} announcement(s)`);
+      setSelectedAnnouncements([]);
+      setToast(`${selectedAnnouncements.length} announcements deleted`);
+    } else if (bulkConfirm === 'pokes') {
+      for (const id of selectedPokes) await adminDeletePoke(id).catch(() => {});
+      setPokes((current) => current.filter((poke) => !selectedPokes.includes(poke.id)));
+      addAdminLog('Deleted pokes', `${selectedPokes.length} poke(s)`);
+      setSelectedPokes([]);
+      setToast(`${selectedPokes.length} pokes deleted`);
+    }
+    setAdminLogs(getAdminLogs());
+    setBulkConfirm('');
+  };
+
+  const persistRides = (next) => {
+    setRides(next);
+    localStorage.setItem('lo_recent_rides', JSON.stringify(next));
+  };
+  const persistTrips = (next) => {
+    setTrips(next);
+    localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+  };
+  const deleteRecord = () => {
+    if (!recordConfirm) return;
+    if (recordConfirm.type === 'ride') persistRides(rides.filter((ride) => ride.id !== recordConfirm.id));
+    if (recordConfirm.type === 'trip') persistTrips(trips.filter((trip) => trip.id !== recordConfirm.id));
+    setToast(`${recordConfirm.type === 'ride' ? 'Ride' : 'Trip'} deleted`);
+    setRecordConfirm(null);
+  };
+  const saveRecord = () => {
+    if (!recordEdit) return;
+    if (recordEdit.type === 'ride') {
+      persistRides(rides.map((ride) => ride.id === recordEdit.id ? { ...ride, ...recordEdit.values } : ride));
+    } else {
+      persistTrips(trips.map((trip) => trip.id === recordEdit.id ? { ...trip, ...recordEdit.values } : trip));
+    }
+    setToast(`${recordEdit.type === 'ride' ? 'Ride' : 'Trip'} updated`);
+    setRecordEdit(null);
+  };
+  const postAnnouncement = () => {
+    if (!announcementTitle.trim() || !announcementMessage.trim()) return;
+    createAnnouncement({ driverUid: profile?.uid || 'admin', driverName: profile?.fullName || 'Administrator', plate: profile?.activePlate || 'Admin', title: announcementTitle.trim(), message: announcementMessage.trim() });
+    setAnnouncements(getAllAnnouncements());
+    setAnnouncementTitle('');
+    setAnnouncementMessage('');
+    setToast('Announcement posted');
+  };
+  const saveAnnouncement = () => {
+    if (!editingAnnouncement) return;
+    updateAnnouncement(editingAnnouncement.id, { title: announcementDraft.title.trim(), message: announcementDraft.message.trim() });
+    setAnnouncements(getAllAnnouncements());
+    setEditingAnnouncement(null);
+    setToast('Announcement updated');
+  };
+  const removeAnnouncement = (id) => {
+    deleteAnnouncement(id);
+    setAnnouncements(getAllAnnouncements());
+    addAdminLog('Deleted announcement', announcements.find((item) => item.id === id)?.title || id);
+    setAdminLogs(getAdminLogs());
+    setConfirmAnnouncementId('');
+    setToast('Announcement deleted');
+  };
+
   const panel = (
     <>
       <Section icon={ShieldCheck} title="Admin" tint="primary">
-        <InfoRow label="Name" value={profile?.fullName} />
-        <InfoRow label="Email" value={profile?.email} />
-        <InfoRow label="Role" value="admin" />
+        <ProfileScreen
+          profile={profile}
+          role="admin"
+          onEdit={() => profile && openEditor(profile)}
+          fallbackName="Administrator"
+          stats={[
+            { label: 'Account', value: 'Admin' },
+            { label: 'Users', value: users.length },
+          ]}
+        />
       </Section>
 
       <Section id="admin-overview" icon={Users} title="Overview" tint="primary">
@@ -137,26 +360,72 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
         <InfoRow label="Total" value={users.length} />
         <InfoRow label="Live vehicles" value={vehicles.length} />
         <InfoRow label="Pokes" value={pokes.length} />
+        <FleetAnalytics rides={rides} trips={trips} />
       </Section>
 
-      <Section id="admin-live" icon={Radio} title="Live Now" defaultOpen={false} tint="primary">
-        {vehicles.length === 0 ? (
-          <p className="text-[11px] text-slate-500">No vehicles broadcasting.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {vehicles.map((vehicle) => {
-              const meta = statusMeta(vehicle);
-              return (
-                <li key={vehicle.vehicleId} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
-                  <span className="truncate font-mono text-[11px] font-bold text-slate-900">{vehicle.vehicleId}</span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    <span className="rounded-md px-1.5 py-0.5 text-[9px] font-bold" style={{ backgroundColor: meta.soft, color: 'var(--lo-text)' }}>{meta.label}</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+      <Section icon={Radio} title="Announcements" tint="primary" defaultOpen={false}>
+        <div className="space-y-3">
+          {announcementTab === 'make' && (
+            <div className="space-y-2">
+              <input value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} placeholder="Announcement title"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900" />
+              <textarea value={announcementMessage} onChange={(e) => setAnnouncementMessage(e.target.value)} placeholder="Announcement details" rows={3}
+                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900" />
+              <button type="button" onClick={postAnnouncement} disabled={!announcementTitle.trim() || !announcementMessage.trim()} className="w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white disabled:opacity-40">Post Announcement</button>
+            </div>
+          )}
+          {announcementTab === 'mine' && (
+            <div className="max-h-72 space-y-1.5 overflow-y-auto">
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5">
+                <label className="flex items-center gap-2 text-[9px] font-bold text-slate-500">
+                  <input type="checkbox" checked={announcements.filter((item) => item.driverUid === profile?.uid).length > 0 && announcements.filter((item) => item.driverUid === profile?.uid).every((item) => selectedAnnouncements.includes(item.id))}
+                    onChange={(event) => setSelectedAnnouncements(event.target.checked ? announcements.filter((item) => item.driverUid === profile?.uid).map((item) => item.id) : [])} /> Select all
+                </label>
+                {selectedAnnouncements.length > 0 && <button type="button" onClick={() => setBulkConfirm('announcements')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedAnnouncements.length}</button>}
+              </div>
+              {announcements.filter((item) => item.driverUid === profile?.uid).map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <input type="checkbox" checked={selectedAnnouncements.includes(item.id)}
+                        onChange={(event) => setSelectedAnnouncements((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} className="mr-2" />
+                      <p className="truncate text-[11px] font-bold text-slate-900">{item.title}</p>
+                      <p className="text-[10px] text-slate-500">{item.message}</p>
+                    </div>
+                    <button type="button" onClick={() => { setEditingAnnouncement(item); setAnnouncementDraft({ title: item.title, message: item.message }); }} className="text-slate-500" aria-label="Edit announcement"><Pencil size={14} /></button>
+                  </div>
+                  <button type="button" onClick={() => setConfirmAnnouncementId(confirmAnnouncementId === item.id ? '' : item.id)} className="mt-2 flex items-center gap-1 text-[9px] font-bold text-red-500"><Trash2 size={11} /> Delete</button>
+                  {confirmAnnouncementId === item.id && (
+                    <div className="mt-2 flex items-center justify-between rounded-lg bg-red-50 px-2 py-1.5">
+                      <span className="text-[9px] font-semibold text-red-700">Delete this announcement?</span>
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => setConfirmAnnouncementId('')} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold">Cancel</button>
+                        <button type="button" onClick={() => removeAnnouncement(item.id)} className="rounded-md bg-red-500 px-2 py-1 text-[9px] font-bold text-white">Delete</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {!announcements.some((item) => item.driverUid === profile?.uid) && <p className="py-2 text-center text-[11px] text-slate-500">No announcements yet.</p>}
+            </div>
+          )}
+          <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+            {[['make', 'Make'], ['mine', 'My'], ['all', 'All']].map(([id, label]) => (
+              <button key={id} type="button" onClick={() => setAnnouncementTab(id)} className={`rounded-lg py-1.5 text-[10px] font-bold ${announcementTab === id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>{label}</button>
+            ))}
+          </div>
+          {announcementTab === 'all' && (
+            <div className="max-h-72 space-y-1.5 overflow-y-auto">
+              {announcements.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <p className="truncate text-[11px] font-bold text-slate-900">{item.title}</p>
+                  <p className="text-[10px] text-slate-500">{item.message}</p>
+                  <p className="mt-1 text-[9px] text-slate-400">{item.driverName} · {item.plate}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Section>
 
       <Section icon={Hand} title="Recent Pokes" defaultOpen={false} tint="primary">
@@ -164,10 +433,21 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
           <p className="text-[11px] text-slate-500">No pokes yet.</p>
         ) : (
           <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+            <li className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5">
+              <label className="flex items-center gap-2 text-[9px] font-bold text-slate-500">
+                <input type="checkbox" checked={pokes.every((poke) => selectedPokes.includes(poke.id))}
+                  onChange={(event) => setSelectedPokes(event.target.checked ? pokes.map((poke) => poke.id) : [])} /> Select all
+              </label>
+              {selectedPokes.length > 0 && <button type="button" onClick={() => setBulkConfirm('pokes')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedPokes.length}</button>}
+            </li>
             {pokes.slice(0, 25).map((poke) => (
               <li key={poke.id} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2">
                 <p className="flex items-center justify-between gap-2 text-[11px] font-bold text-slate-900">
-                  <span className="truncate font-mono">{poke.toPlate}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <input type="checkbox" checked={selectedPokes.includes(poke.id)}
+                      onChange={(event) => setSelectedPokes((current) => event.target.checked ? [...current, poke.id] : current.filter((id) => id !== poke.id))} />
+                    <span className="truncate font-mono">{poke.toPlate}</span>
+                  </span>
                   <span className="shrink-0 text-[10px] font-normal text-slate-500">{timeAgo(poke.createdAt)}</span>
                 </p>
                 <p className="truncate text-[10px] text-slate-500">{poke.fromName}</p>
@@ -176,19 +456,61 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
           </ul>
         )}
       </Section>
+
+      <Section icon={ClipboardList} title="Admin Logs" defaultOpen={false} tint="primary">
+        {adminLogs.length === 0 ? (
+          <p className="text-[11px] text-slate-500">No admin actions recorded yet.</p>
+        ) : (
+          <div className="max-h-64 space-y-1.5 overflow-y-auto">
+            {adminLogs.map((log) => (
+              <div key={log.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-bold text-slate-900">{log.action}</p>
+                {log.details && <p className="text-[10px] text-slate-500">{log.details}</p>}
+                <p className="mt-1 text-[9px] text-slate-400">{new Date(log.createdAt).toLocaleString()}</p>
+              </div>
+            ))}
+            <button type="button" onClick={() => { clearAdminLogs(); setAdminLogs([]); setToast('Admin logs cleared'); }} className="w-full rounded-xl border border-slate-200 py-2 text-[10px] font-bold text-slate-600">Clear logs</button>
+          </div>
+        )}
+      </Section>
+      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false}>
+        <EmergencyRadio logs={radioLogs} playingId={playingRadioId} />
+      </Section>
+      <Section icon={CloudRain} title="Weather & Analytics" tint="primary" defaultOpen={false}>
+        <WeatherTab />
+      </Section>
+      <Section id="admin-inbox" icon={Inbox} title="Ask Admin & Feedback" defaultOpen={false} tint="primary">
+        {utilityInbox.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 px-3 py-6 text-center text-xs text-slate-500">No questions or feedback yet.</p>
+        ) : (
+          <div className="max-h-[28rem] space-y-2 overflow-y-auto">
+            {utilityInbox.map((item) => (
+              <article key={item.id} onClick={() => setUtilityInbox(markUtilityInboxRead(item.id))} className={`cursor-pointer rounded-xl border px-3 py-3 ${item.read ? 'border-slate-200 bg-white' : 'border-blue-200 bg-blue-50'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">{item.type === 'admin-question' ? 'Admin question' : 'Feedback'}</p>
+                    <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-900">{item.message}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">{item.sender} · {new Date(item.createdAt).toLocaleString()}</p>
+                  </div>
+                  <button type="button" onClick={(event) => { event.stopPropagation(); setUtilityInbox(deleteUtilityInboxItem(item.id)); }} className="flex min-h-10 min-w-10 items-center justify-center text-red-500" aria-label="Delete inbox item"><Trash2 size={15} /></button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Section>
     </>
   );
 
   const dockItems = [
     { id: 'overview', label: 'Overview', icon: ShieldCheck, target: 'admin-overview' },
-    { id: 'live', label: 'Live vehicles', icon: Radio, target: 'admin-live' },
     { id: 'accounts', label: 'Accounts', icon: Users, target: 'admin-accounts' },
     { id: 'commuter', label: 'Commuter view', icon: MapPin, onSelect: () => onViewChange?.('commuter') },
     { id: 'driver', label: 'Driver view', icon: Bus, onSelect: () => onViewChange?.('driver') },
   ];
 
   return (
-    <AppShell brand="Admin" panel={panel} dockItems={dockItems} extraNavigationItems={[{ id: 'admin-accounts', title: 'Accounts', icon: Users, useCurrentScreen: true }]} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
+    <AppShell brand="Admin" panel={panel} dockItems={dockItems} utilityProfile={utilityProfile} extraNavigationItems={[{ id: 'admin-accounts', title: 'Accounts', icon: Users, useCurrentScreen: true }]} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
       <div id="admin-accounts" className="h-full scroll-m-6 overflow-y-auto bg-[var(--lo-bg)] p-3 sm:p-5">
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -223,7 +545,7 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
                 key={r}
                 type="button"
                 onClick={() => setRoleFilter(r)}
-                className={`min-h-11 flex-1 rounded-xl px-3 text-xs font-bold uppercase tracking-wide transition ${roleFilter === r ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-900 hover:border-blue-600/40'}`}
+                className={`min-h-11 flex-1 rounded-xl px-3 text-xs font-bold uppercase tracking-wide  ${roleFilter === r ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-900 '}`}
               >
                 {r}
               </button>
@@ -232,52 +554,105 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
         </div>
 
         <div className="space-y-2">
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-600">
+                <input type="checkbox" checked={filtered.every((user) => selectedUsers.includes(user.uid))}
+                  onChange={(event) => setSelectedUsers(event.target.checked ? filtered.map((user) => user.uid) : [])} />
+                Select all
+              </label>
+              {selectedUsers.length > 0 && (
+                <button type="button" onClick={() => setBulkConfirm('users')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2.5 py-1.5 text-[10px] font-bold text-white">
+                  <Trash2 size={12} /> Delete {selectedUsers.length}
+                </button>
+              )}
+            </div>
+          )}
           {filtered.map((user) => (
-            <div key={user.uid} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-slate-900">{user.fullName || 'User'}</p>
-                <p className="truncate text-[11px] text-slate-500">{user.email}</p>
-                {user.phone && <p className="text-[10px] text-slate-500">{user.phone}</p>}
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${ROLE_STYLES[user.role] || ROLE_STYLES.commuter}`}>
-                    {(() => { const I = ROLE_ICONS[user.role] || Users; return <I size={10} />; })()}
-                    {user.role}
-                  </span>
-                  {user.plates?.map((p) => (
-                    <span key={p} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900">
-                      <CreditCard size={9} /> {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                {user.uid !== profile?.uid && (
-                  <>
-                    <button type="button" onClick={() => openEditor(user)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-50 hover:text-slate-900" title="Edit">
-                      <Pencil size={18} />
-                    </button>
-                    <div className="relative">
-                      <button type="button" onClick={() => setConfirmUid(confirmUid === user.uid ? '' : user.uid)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-red-500 transition hover:bg-slate-50" title="Delete">
-                        <Trash2 size={18} />
-                      </button>
-                      {confirmUid === user.uid && (
-                        <div className="absolute right-0 top-full z-50 mt-1 rounded-xl border border-red-500/40 bg-white p-3 shadow-xl">
-                          <p className="mb-2 text-[10px] font-bold text-slate-900">Delete {user.email}?</p>
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => removeUser(user)} className="rounded-lg border border-red-500/40 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-900">Yes, delete</button>
-                            <button type="button" onClick={() => setConfirmUid('')} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-bold text-slate-900">Cancel</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+            <div key={user.uid} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <button type="button" onClick={() => setSelectedUser(user)}
+                className="flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left">
+                <span className="flex min-w-0 items-center gap-2">
+                  <input type="checkbox" checked={selectedUsers.includes(user.uid)} disabled={user.uid === profile?.uid}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => setSelectedUsers((current) => event.target.checked ? [...current, user.uid] : current.filter((uid) => uid !== user.uid))} />
+                  <span className="truncate text-sm font-bold text-slate-900">{user.fullName || 'User'}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${ROLE_STYLES[user.role] || ROLE_STYLES.commuter}`}>{user.role}</span>
+                </span>
+              </button>
             </div>
           ))}
         </div>
       </div>
+
+      {selectedUser && (
+        <div className="fixed inset-0 z-[1900] overflow-y-auto bg-[var(--lo-bg)] lo-tab-content">
+          <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+            <div className="min-w-0">
+              <p className="truncate text-lg font-extrabold text-slate-900">{selectedUser.fullName || 'User'}</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-500">{selectedUser.role} account</p>
+            </div>
+            <button type="button" onClick={() => setSelectedUser(null)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500" aria-label="Close user details">
+              <X size={20} />
+            </button>
+          </header>
+          <main className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <InfoRow label="Email" value={selectedUser.email || '—'} />
+                <InfoRow label="Phone" value={selectedUser.phone || '—'} />
+                <InfoRow label="Role" value={selectedUser.role || 'commuter'} />
+                <InfoRow label="Active plate" value={selectedUser.activePlate || '—'} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => openEditor(selectedUser)} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[11px] font-bold text-slate-700"><Pencil size={13} /> Edit details</button>
+                {selectedUser.uid !== profile?.uid && <button type="button" onClick={() => setConfirmUid(confirmUid === selectedUser.uid ? '' : selectedUser.uid)} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-red-200 px-3 text-[11px] font-bold text-red-600"><Trash2 size={13} /> Delete user</button>}
+              </div>
+              {confirmUid === selectedUser.uid && (
+                <div className="mt-3 flex items-center justify-between rounded-xl bg-red-50 px-3 py-2">
+                  <span className="text-[10px] font-semibold text-red-700">Delete {selectedUser.email}?</span>
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={() => setConfirmUid('')} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold">Cancel</button>
+                    <button type="button" onClick={() => removeUser(selectedUser)} className="rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white">Delete</button>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {selectedUser.role === 'commuter' && (
+              <section>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">Recent rides <span className="text-slate-400">({rides.length})</span></h3>
+                {rides.length ? <div className="space-y-2">{rides.map((ride) => (
+                  <div key={ride.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{ride.plate || ride.vehicleId || 'PUV'} · {ride.routeName || ride.operatorName || 'Route'}</p><p className="text-[10px] text-slate-500">{ride.time || ride.startedAt || 'Recorded ride'}</p></div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setRecordEdit({ type: 'ride', id: ride.id, values: { plate: ride.plate || ride.vehicleId || '', routeName: ride.routeName || ride.operatorName || '' } })} className="flex min-h-10 min-w-10 items-center justify-center text-slate-500" aria-label="Edit ride"><Pencil size={16} /></button>
+                      <button type="button" onClick={() => setRecordConfirm({ type: 'ride', id: ride.id })} className="flex min-h-10 min-w-10 items-center justify-center text-red-500" aria-label="Delete ride"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))}</div> : <p className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">No rides recorded.</p>}
+              </section>
+            )}
+
+            {selectedUser.role === 'driver' && (
+              <section>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">Trips <span className="text-slate-400">({trips.length})</span></h3>
+                {trips.length ? <div className="space-y-2">{trips.map((trip) => (
+                  <div key={trip.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{trip.vehicleId || 'PUV'} · {trip.routeName || 'Route'}</p><p className="text-[10px] text-slate-500">{trip.startedAt || 'Recorded trip'} · {trip.duration || 'Duration unavailable'}</p></div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setRecordEdit({ type: 'trip', id: trip.id, values: { vehicleId: trip.vehicleId || '', routeName: trip.routeName || '' } })} className="flex min-h-10 min-w-10 items-center justify-center text-slate-500" aria-label="Edit trip"><Pencil size={16} /></button>
+                      <button type="button" onClick={() => setRecordConfirm({ type: 'trip', id: trip.id })} className="flex min-h-10 min-w-10 items-center justify-center text-red-500" aria-label="Delete trip"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))}</div> : <p className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">No trips recorded.</p>}
+              </section>
+            )}
+          </main>
+        </div>
+      )}
 
       {/* Edit modal */}
       {editing && (
@@ -285,7 +660,7 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
           <div role="dialog" aria-modal="true" aria-label={`Edit ${editing.email}`} className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-lg sm:rounded-2xl sm:pb-0">
             <header className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
               <h3 className="text-sm font-bold text-slate-900">Edit {editing.email}</h3>
-              <button type="button" onClick={() => setEditing(null)} aria-label="Close edit dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900"><X size={20} /></button>
+              <button type="button" onClick={() => setEditing(null)} aria-label="Close edit dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500  "><X size={20} /></button>
             </header>
             <div className="space-y-3 p-5">
               <label className="block">
@@ -310,14 +685,75 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
                   <input value={draft.plates} onChange={(e) => setDraft((d) => ({ ...d, plates: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none" />
                 </label>
               )}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <label className="block">
+                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">New account password</span>
+                  <input type="password" minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none" />
+                </label>
+                <button type="button" onClick={updateUserPassword} disabled={saving || newPassword.length < 6} className="mt-2 min-h-10 w-full rounded-xl bg-slate-900 px-3 text-xs font-bold text-white disabled:opacity-40">Update password</button>
+              </div>
             </div>
             <footer className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button type="button" onClick={() => setEditing(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900 transition hover:bg-slate-50">Cancel</button>
-              <button type="button" onClick={saveEditor} disabled={saving} className="flex min-h-11 items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700 disabled:opacity-60">
+              <button type="button" onClick={() => setEditing(null)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-900  ">Cancel</button>
+              <button type="button" onClick={saveEditor} disabled={saving} className="flex min-h-11 items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-lg   disabled:opacity-60">
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {recordConfirm && (
+        <div className="fixed inset-x-4 bottom-5 z-[2100] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
+          <p className="text-sm font-bold text-slate-900">Delete this {recordConfirm.type}?</p>
+          <p className="mt-1 text-[10px] text-slate-500">This action can only be undone by restoring the browser data.</p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" onClick={() => setRecordConfirm(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
+            <button type="button" onClick={deleteRecord} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete</button>
+          </div>
+        </div>
+      )}
+
+      {bulkConfirm && (
+        <div className="fixed inset-x-4 bottom-5 z-[2200] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
+          <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
+          <p className="mt-1 text-[10px] text-slate-500">Delete the selected items? This action cannot be undone.</p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" onClick={() => setBulkConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
+            <button type="button" onClick={confirmBulkDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
+          </div>
+        </div>
+      )}
+
+      {recordEdit && (
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+            <h3 className="mb-3 text-sm font-bold text-slate-900">Edit {recordEdit.type}</h3>
+            <div className="space-y-2">
+              <input value={recordEdit.values.plate ?? recordEdit.values.vehicleId ?? ''} onChange={(e) => setRecordEdit((current) => ({ ...current, values: { ...current.values, plate: e.target.value, vehicleId: e.target.value } }))} placeholder="Plate number" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <input value={recordEdit.values.routeName || ''} onChange={(e) => setRecordEdit((current) => ({ ...current, values: { ...current.values, routeName: e.target.value } }))} placeholder="Route" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setRecordEdit(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
+              <button type="button" onClick={saveRecord} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingAnnouncement && (
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+            <h3 className="mb-3 text-sm font-bold text-slate-900">Edit announcement</h3>
+            <div className="space-y-2">
+              <input value={announcementDraft.title} onChange={(e) => setAnnouncementDraft((draft) => ({ ...draft, title: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <textarea value={announcementDraft.message} onChange={(e) => setAnnouncementDraft((draft) => ({ ...draft, message: e.target.value }))} rows={3} className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setEditingAnnouncement(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
+              <button type="button" onClick={saveAnnouncement} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white">Save</button>
+            </div>
           </div>
         </div>
       )}

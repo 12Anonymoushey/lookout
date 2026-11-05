@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Bus, Loader2, RefreshCw } from 'lucide-react';
 import Navbar from './components/Navbar.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import CommuterView from './components/CommuterView.jsx';
 import DriverView from './components/DriverView.jsx';
 import AdminView from './components/AdminView.jsx';
-import { BACKEND_URL, socket } from './services/socket.js';
+import { BACKEND_URL, configureSocketToken, socket } from './services/socket.js';
 import { useAuth } from './context/AuthContext.jsx';
+import EmergencyRadio from './components/EmergencyRadio.jsx';
+import { auth, firebaseReady } from './services/firebase.js';
 
 export default function App() {
   const {
@@ -29,6 +31,27 @@ export default function App() {
   const [vehiclesById, setVehiclesById] = useState({});
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [radioLogs, setRadioLogs] = useState([]);
+  const [playingRadioId, setPlayingRadioId] = useState('');
+  const radioUrlsRef = useRef([]);
+
+  useEffect(() => {
+    let active = true;
+    const refreshSocketAuth = async () => {
+      const token = firebaseReady && auth.currentUser
+        ? await auth.currentUser.getIdToken().catch(() => '')
+        : '';
+      if (active) configureSocketToken(token);
+    };
+    refreshSocketAuth();
+    const unsubscribe = firebaseReady
+      ? auth.onAuthStateChanged(() => refreshSocketAuth())
+      : () => {};
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const onConnect = () => setConnected(true);
@@ -56,6 +79,32 @@ export default function App() {
       socket.off('driverMoved', onMoved);
       socket.off('driverDisconnected', onGone);
     };
+  }, []);
+
+  useEffect(() => {
+    const onEmergencyRadio = (payload) => {
+      let bytes = payload;
+      if (payload && !ArrayBuffer.isView(payload) && payload.buffer instanceof ArrayBuffer) bytes = payload.buffer;
+      else if (payload?.data) bytes = payload.data;
+      if (!bytes) return;
+
+      const buffer = bytes instanceof ArrayBuffer ? bytes : Uint8Array.from(bytes).buffer;
+      const url = URL.createObjectURL(new Blob([buffer], { type: 'audio/webm' }));
+      radioUrlsRef.current.push(url);
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const audio = new Audio(url);
+      setRadioLogs((current) => [{ id, url, audio, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...current].slice(0, 30));
+      setPlayingRadioId(id);
+      audio.play().catch(() => {});
+      audio.addEventListener('ended', () => setPlayingRadioId((current) => current === id ? '' : current), { once: true });
+    };
+
+    socket.on('emergency_radio', onEmergencyRadio);
+    return () => socket.off('emergency_radio', onEmergencyRadio);
+  }, []);
+
+  useEffect(() => () => {
+    radioUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
   const loadRoutes = useCallback(async () => {
@@ -117,15 +166,19 @@ export default function App() {
   if (!profile) return <AuthScreen />;
 
   const shellProps = {
+    utilityProfile: profile,
     drawerOpen,
     onOpenDrawer: openDrawer,
     onCloseDrawer: closeDrawer,
     collapsed: panelCollapsed,
     onToggleCollapse: () => setPanelCollapsed((v) => !v),
+    radioLogs,
+    playingRadioId,
   };
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-50 text-slate-900">
+      <EmergencyRadio dockOnly logs={radioLogs} playingId={playingRadioId} />
       <Navbar view={view} onViewChange={switchView} connected={connected} profile={profile} role={role} isAdmin={isAdmin} isDemo={isDemo} onSignOut={signOut} onOpenSidebar={openDrawer} />
 
       {firebaseMissing && (
@@ -145,7 +198,7 @@ export default function App() {
           <span className="flex items-center gap-2">
             <AlertTriangle size={14} className="shrink-0" /> {routesError}
           </span>
-          <button type="button" onClick={loadRoutes} className="flex min-h-11 items-center gap-2 rounded-xl border border-blue-600/40 bg-white px-3 text-sm font-semibold text-blue-600 transition hover:bg-slate-50">
+          <button type="button" onClick={loadRoutes} className="flex min-h-11 items-center gap-2 rounded-xl border border-blue-600/40 bg-white px-3 text-sm font-semibold text-blue-600  ">
             <RefreshCw size={12} /> Retry
           </button>
         </div>

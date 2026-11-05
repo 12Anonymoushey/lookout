@@ -22,6 +22,8 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { db, firebaseReady } from './firebase.js';
+import { auth } from './firebase.js';
+import { BACKEND_URL } from './socket.js';
 
 const toMillis = (value) => {
   if (!value) return 0;
@@ -70,7 +72,21 @@ export async function adminUpdateUser(uid, patch) {
 /** Remove an account's Look Out! profile. */
 export async function adminDeleteUser(uid) {
   if (!firebaseReady) throw new Error('Firebase is not configured yet.');
-  await deleteDoc(doc(db, 'users', uid));
+  const user = auth.currentUser;
+  if (!user) throw new Error('Your administrator session has expired.');
+  const token = await user.getIdToken();
+  const response = await fetch(`${BACKEND_URL}/admin/users/${encodeURIComponent(uid)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Account deletion failed.');
+}
+
+/** Remove a poke visible in the admin poke monitor. */
+export async function adminDeletePoke(pokeId) {
+  if (!firebaseReady) throw new Error('Firebase is not configured yet.');
+  await deleteDoc(doc(db, 'pokes', pokeId));
 }
 
 export { toMillis };

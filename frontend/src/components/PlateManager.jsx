@@ -63,11 +63,11 @@ export default function PlateManager({ plates = [], activePlate, onSelect, onCha
                   {active ? (
                     <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-900">on air</span>
                   ) : (
-                    <button type="button" onClick={() => onSelect(plate)} disabled={disabled} className="rounded-lg border border-slate-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-900 transition hover:border-[var(--lo-primary)]/40 hover:text-blue-600 disabled:opacity-50">
+                    <button type="button" onClick={() => onSelect(plate)} disabled={disabled} className="rounded-lg border border-slate-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-900    disabled:opacity-50">
                       use
                     </button>
                   )}
-                  <button type="button" onClick={() => remove(plate)} disabled={disabled} aria-label={`Remove ${plate}`} className="rounded-lg p-1 text-slate-500 transition hover:bg-slate-50 hover:text-red-500 disabled:opacity-40">
+                  <button type="button" onClick={() => remove(plate)} disabled={disabled} aria-label={`Remove ${plate}`} className="rounded-lg p-1 text-slate-500    disabled:opacity-40">
                     <Trash2 size={13} />
                   </button>
                 </span>
@@ -90,7 +90,7 @@ export default function PlateManager({ plates = [], activePlate, onSelect, onCha
           type="button"
           onClick={add}
           disabled={disabled}
-          className="flex shrink-0 items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
+          className="flex shrink-0 items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white   disabled:opacity-50"
         >
           <Plus size={13} /> Add
         </button>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Hand, Inbox, MapPin, X } from 'lucide-react';
 import { subscribeDriverPokes, timeAgo } from '../services/pokeService.js';
 
-export default function DriverPokes({ plate, className = '', open: openProp, onOpenChange }) {
+export default function DriverPokes({ plate, className = '', open: openProp, onOpenChange, active = true, position = null }) {
   const [state, setState] = useState({ count: 0, list: [], source: 'socket' });
   const [localOpen, setLocalOpen] = useState(false);
   const controlled = openProp !== undefined;
@@ -15,6 +15,8 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
   const [bump, setBump] = useState(false);
   const previous = useRef(0);
   const bumpTimer = useRef(null);
+  const passedPokes = useRef(new Set());
+  const previousDistances = useRef(new Map());
 
   useEffect(() => {
     if (!plate) return undefined;
@@ -33,6 +35,28 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
   }, [plate]);
 
   useEffect(() => {
+    if (!active || !position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return;
+    for (const poke of state.list) {
+      const lat = Number(poke.lat);
+      const lng = Number(poke.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const dLat = ((lat - position.lat) * Math.PI) / 180;
+      const dLng = ((lng - position.lng) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(position.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const distanceKm = 6371 * 2 * Math.asin(Math.sqrt(Math.min(1, a)));
+      const previous = previousDistances.current.get(poke.id);
+      if (distanceKm <= 0.12 || (previous != null && previous < distanceKm && previous <= 0.35)) {
+        passedPokes.current.add(poke.id);
+      } else {
+        previousDistances.current.set(poke.id, distanceKm);
+      }
+    }
+  }, [active, position?.lat, position?.lng, state.list]);
+
+  const visiblePokes = active ? state.list.filter((poke) => !passedPokes.current.has(poke.id)) : [];
+  const visibleCount = visiblePokes.length;
+
+  useEffect(() => {
     if (!open) return undefined;
     const lockBody = window.matchMedia('(max-width: 639px)').matches;
     const previousOverflow = document.body.style.overflow;
@@ -47,7 +71,7 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
     };
   }, [open]);
 
-  if (!plate) return null;
+  if (!plate || !active) return null;
 
   return (
     <div className={`relative ${className}`}>
@@ -60,15 +84,15 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
               <Inbox size={13} style={{ color: 'var(--lo-primary)' }} /> Pokes for {plate}
             </p>
             <div className="flex items-center gap-2">
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-slate-900" style={{ background: 'var(--lo-success)' }}>{state.count}</span>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close pokes" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50 sm:hidden"><X size={18} /></button>
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-slate-900" style={{ background: 'var(--lo-success)' }}>{visibleCount}</span>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close pokes" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500  sm:hidden"><X size={18} /></button>
             </div>
           </header>
-          {state.list.length === 0 ? (
+          {visiblePokes.length === 0 ? (
             <p className="px-3 py-5 text-center text-[11px] text-slate-500">No pokes yet.</p>
           ) : (
             <ul className="max-h-[55dvh] divide-y divide-[var(--lo-panel-border)] overflow-y-auto sm:max-h-72">
-              {state.list.map((poke) => (
+              {visiblePokes.map((poke) => (
                 <li key={poke.id} className="flex items-start gap-2 px-3 py-2.5">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--lo-success)', color: 'var(--lo-text)' }}>
                     <Hand size={12} />
@@ -99,15 +123,15 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className={`flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-xs font-bold shadow-xl backdrop-blur transition ${
+        className={`flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-xs font-bold shadow-xl backdrop-blur  ${
           bump
             ? 'border-[var(--lo-success)] bg-[var(--lo-success)] text-slate-900'
-            : 'border-slate-200 bg-white text-slate-900 hover:border-[var(--lo-primary)]/40 hover:text-blue-600'
+            : 'border-slate-200 bg-white text-slate-900  '
         }`}
       >
         <Hand size={14} className={bump ? 'animate-bounce' : ''} style={{ color: 'var(--lo-success)' }} />
-        <span className="tabular-nums">{state.count} Pokes</span>
-        <ChevronDown size={13} className={`transition ${open ? 'rotate-180' : ''}`} />
+        <span className="tabular-nums">{visibleCount} Pokes</span>
+        <ChevronDown size={13} className={open ? 'rotate-180' : ''} />
       </button>
     </div>
   );

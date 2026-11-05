@@ -91,7 +91,7 @@ export default function VehicleMarker({ vehicle, route, onPoke, pokeState = 'idl
               type="button"
               onClick={() => onPoke(vehicle)}
               disabled={pokeState !== 'idle'}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-900 transition hover:brightness-95 disabled:cursor-default"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-900   disabled:cursor-default"
             >
               {pokeState === 'sending' && <Loader2 size={13} className="animate-spin" />}
               {pokeState === 'sent' && <Check size={13} />}

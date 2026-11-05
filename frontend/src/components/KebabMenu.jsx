@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreVertical, Pencil, Trash2, Eye, Plus, ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
+import { MoreVertical, ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
 
 /**
  * Three-dot kebab menu with actions. Click outside to close.
@@ -22,13 +22,13 @@ export function KebabMenu({ items = [] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg p-1 text-slate-500 transition hover:bg-[var(--lo-card-border)] hover:text-slate-900"
+        className="rounded-lg p-1 text-slate-500   "
         aria-label="More actions"
       >
         <MoreVertical size={15} />
       </button>
       {open && (
-        <div className="lo-kebab-menu">
+        <div className="lo-kebab-menu lo-pop-enter">
           {items.map((item, i) => (
             <button
               key={i}
@@ -84,7 +84,7 @@ export function SearchSortBar({
             }
             setFieldIdx((i) => (i + 1) % fields.length);
           }}
-          className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-bold text-slate-900 transition hover:border-[var(--lo-primary)]/50"
+          className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-bold text-slate-900  "
           title={`Sort by ${currentField}`}
         >
           <ArrowUpDown size={12} />

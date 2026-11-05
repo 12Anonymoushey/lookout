@@ -15,8 +15,10 @@
 
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
 } from 'firebase/auth';
@@ -103,6 +105,9 @@ export function friendlyAuthError(err) {
     'auth/network-request-failed': 'Network problem — check your internet connection.',
     'auth/operation-not-allowed':
       'Email/Password sign-in is disabled in Firebase. Enable it in Authentication → Sign-in method.',
+    'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
+    'auth/cancelled-popup-request': 'Google sign-in was cancelled.',
+    'auth/popup-blocked': 'Allow pop-ups, then try Google sign-in again.',
     'auth/unauthorized-domain':
       'This domain is not authorised in Firebase Authentication → Settings → Authorized domains.',
     'permission-denied':
@@ -126,6 +131,7 @@ export function profileFromUser(user, role) {
     role,
     fullName: user.displayName || user.email?.split('@')[0] || 'Look Out! user',
     email: user.email ?? '',
+    photoURL: user.photoURL || '',
     phone: '',
     plates: [],
     activePlate: '',
@@ -280,6 +286,7 @@ export async function loginAccount({ role, email, password }) {
         role: admin ? 'admin' : effectiveRole,
         fullName: profile.fullName,
         email: profile.email,
+        photoURL: profile.photoURL || '',
         phone: '',
         plates: [],
         activePlate: '',
@@ -302,6 +309,49 @@ export async function loginAccount({ role, email, password }) {
   // sees an undefined role (that used to leave drivers stranded on the login
   // screen instead of their console).
   if (!profile.role) profile = { ...profile, role: admin ? 'admin' : effectiveRole };
+
+  return { user: cred.user, profile };
+}
+
+export async function loginWithGoogle({ role }) {
+  if (!firebaseReady) throw new Error('Firebase is not configured yet.');
+  if (!ROLES.includes(role)) throw new Error('Pick either Commuter or Driver.');
+
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const cred = await signInWithPopup(auth, provider);
+  const uid = cred.user.uid;
+  const email = cred.user.email?.trim().toLowerCase() || '';
+  const admin = isAdminEmail(email);
+  let profile = await fetchProfile(uid);
+  let effectiveRole = admin ? 'admin' : role;
+
+  if (!profile) {
+    profile = profileFromUser(cred.user, effectiveRole);
+    await createProfile(uid, {
+      uid,
+      role: effectiveRole,
+      loginTab: role,
+      fullName: profile.fullName,
+      email: profile.email,
+      phone: '',
+      plates: [],
+      activePlate: '',
+      createdAt: serverTimestamp(),
+    });
+  } else if (admin && profile.role !== 'admin') {
+    await updateProfileFields(uid, { role: 'admin' });
+    profile = { ...profile, role: 'admin' };
+  } else if (!profile.role) {
+    profile = { ...profile, role: effectiveRole };
+    await updateProfileFields(uid, { role: effectiveRole });
+  } else if (!admin) {
+    effectiveRole = profile.role;
+  }
+  if (cred.user.photoURL && profile.photoURL !== cred.user.photoURL) {
+    await updateProfileFields(uid, { photoURL: cred.user.photoURL });
+    profile = { ...profile, photoURL: cred.user.photoURL };
+  }
 
   return { user: cred.user, profile };
 }

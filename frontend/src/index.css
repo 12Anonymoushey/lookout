@@ -52,12 +52,6 @@ select option {
 
 #root button {
   box-shadow: inset 0 0 0 0 var(--color-blue-600);
-  transition: color 500ms ease-out, box-shadow 500ms ease-out, transform 150ms ease-out;
-}
-
-#root button:hover:not(:disabled) {
-  color: white;
-  box-shadow: inset 0 -100px 0 0 var(--color-blue-600);
 }
 
 #root button:active:not(:disabled) {
@@ -71,7 +65,6 @@ select option {
   box-shadow: inset 0 -100px 0 0 var(--color-blue-600);
 }
 
-#root button:hover:not(:disabled) :where(span, svg),
 #root button:focus-visible:not(:disabled) :where(span, svg) {
   color: white;
 }
@@ -80,6 +73,97 @@ select option {
   #root button {
     transition: none;
   }
+}
+
+/* -------------------- Shared motion -------------------- */
+:root {
+  --lo-motion-fast: 180ms;
+  --lo-motion-base: 260ms;
+  --lo-motion-enter: 340ms;
+  --lo-motion-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+#root button,
+#root [role='button'],
+#root input,
+#root select,
+#root textarea {
+  transition:
+    color var(--lo-motion-fast) var(--lo-motion-ease),
+    background-color var(--lo-motion-fast) var(--lo-motion-ease),
+    border-color var(--lo-motion-fast) var(--lo-motion-ease),
+    opacity var(--lo-motion-fast) var(--lo-motion-ease),
+    box-shadow var(--lo-motion-fast) var(--lo-motion-ease),
+    transform var(--lo-motion-fast) var(--lo-motion-ease);
+}
+
+#root button:not(:disabled):active,
+#root [role='button']:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+#root section,
+#root aside,
+#root nav,
+#root [role='dialog'] {
+  transition:
+    opacity var(--lo-motion-base) var(--lo-motion-ease),
+    transform var(--lo-motion-base) var(--lo-motion-ease),
+    box-shadow var(--lo-motion-base) var(--lo-motion-ease);
+}
+
+@keyframes lo-screen-enter {
+  from {
+    opacity: 0;
+    transform: translateX(12px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes lo-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lo-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lo-screen-enter {
+  animation: lo-screen-enter 180ms var(--lo-motion-ease) both;
+}
+
+.lo-screen-enter > header,
+.lo-screen-enter > div > section {
+  animation: lo-content-enter var(--lo-motion-base) var(--lo-motion-ease) both;
+}
+
+#root [role='dialog'] > div {
+  animation: lo-modal-enter var(--lo-motion-enter) var(--lo-motion-ease) both;
+}
+
+#root select {
+  will-change: transform;
+}
+
+#root select:focus {
+  transform: translateY(-1px);
 }
 
 /* -------------------- Leaflet overrides ---------------- */
@@ -345,6 +429,14 @@ a.leaflet-popup-close-button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #root *,
+  #root *::before,
+  #root *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
   .auth-card-enter,
   .auth-form-enter {
     animation: none;
@@ -385,6 +477,55 @@ a.leaflet-popup-close-button {
   border: 1px solid var(--lo-card-border);
   background: var(--lo-panel);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  transform-origin: top right;
+}
+
+@keyframes lo-pop-enter {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lo-route-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.lo-pop-enter {
+  animation: lo-pop-enter 160ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.lo-sidebar-tab {
+  transition: transform 140ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    background-color 140ms ease, color 140ms ease;
+}
+
+.lo-sidebar-tab:active,
+.lo-sidebar-tab[aria-current='page'] {
+  transform: translateX(3px);
+}
+
+.lo-route-picker {
+  transform-origin: bottom center;
+  animation: lo-route-pop 180ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+@keyframes lo-sidebar-enter {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.lo-desktop-sidebar {
+  animation: lo-sidebar-enter 280ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  will-change: transform, opacity;
+}
+
+.floating-dock__item[data-active='true'] {
+  animation: lo-tab-pop 160ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+@keyframes lo-tab-pop {
+  from { transform: translateY(3px) scale(0.94); }
+  to { transform: translateY(0) scale(1); }
 }
 
 .lo-kebab-item {
@@ -397,19 +538,10 @@ a.leaflet-popup-close-button {
   font-weight: 600;
   text-align: left;
   color: var(--lo-text);
-  transition: background 0.12s;
-}
-
-.lo-kebab-item:hover {
-  background: rgba(37, 99, 235, 0.08);
 }
 
 .lo-kebab-item--danger {
   color: var(--lo-text);
-}
-
-.lo-kebab-item--danger:hover {
-  background: rgba(239, 68, 68, 0.12);
 }
 
 @media (pointer: coarse) {
@@ -451,19 +583,11 @@ a.leaflet-popup-close-button {
 }
 
 .floating-dock__item {
-  transform: scale(var(--dock-scale, 1));
   transform-origin: center bottom;
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), color 180ms ease, background-color 180ms ease;
-}
-
-.floating-dock__item:hover {
-  z-index: 50;
-  transform: scale(max(var(--dock-scale, 1), 1.35));
 }
 
 .floating-dock__item[data-touch-active='true'] {
   z-index: 50;
-  transform: scale(max(var(--dock-scale, 1), 1.35));
   background-color: white;
   color: var(--color-blue-600);
 }
@@ -471,10 +595,8 @@ a.leaflet-popup-close-button {
 .floating-dock__label {
   opacity: 0;
   transform: translate(-50%, 4px) scale(0.9);
-  transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.floating-dock__item:hover .floating-dock__label,
 .floating-dock__item:focus-visible .floating-dock__label,
 .floating-dock__item[data-touch-active='true'] .floating-dock__label {
   z-index: 60;
@@ -498,26 +620,15 @@ a.leaflet-popup-close-button {
 .sidebar-nav__item {
   transform: translateX(0) scale(1);
   transform-origin: left center;
-  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), color 160ms ease, background-color 160ms ease, box-shadow 200ms ease;
 }
 
-.sidebar-nav__item:hover,
 .sidebar-nav__item:focus-visible {
   z-index: 1;
 }
 
-.sidebar-nav__item:hover .sidebar-nav__icon,
-.sidebar-nav__item:focus-visible .sidebar-nav__icon {
-  transform: scale(1.16) rotate(-7deg);
-}
-
 .sidebar-back-button {
-  transition: transform 180ms ease, background-color 180ms ease;
 }
 
-.sidebar-back-button:hover {
-  transform: translateX(-3px);
-}
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-nav__item,

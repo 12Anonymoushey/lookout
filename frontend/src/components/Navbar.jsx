@@ -6,6 +6,7 @@ import PulseDot from './PulseDot.jsx';
 export default function Navbar({ view, onViewChange, connected, profile, role, isAdmin, isDemo: _isDemo, onSignOut, onOpenSidebar }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState('');
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -19,14 +20,19 @@ export default function Navbar({ view, onViewChange, connected, profile, role, i
 
   useEffect(() => { if (!toast) return undefined; const id = setTimeout(() => setToast(''), 3000); return () => clearTimeout(id); }, [toast]);
 
-  const handleSignOut = () => { setMenuOpen(false); setToast('Signed out successfully'); setTimeout(() => onSignOut?.(), 300); };
+  const handleSignOut = () => {
+    setToast('Signed out successfully');
+    setConfirmSignOut(false);
+    setMenuOpen(false);
+    setTimeout(() => onSignOut?.(), 900);
+  };
 
   return (
     <>
       <header className="relative z-[1300] flex h-14 shrink-0 items-center justify-between gap-2 border-b px-2 backdrop-blur sm:h-16 sm:gap-3 sm:px-5"
         style={{ borderColor: 'var(--lo-panel-border)', backgroundColor: 'var(--lo-panel)' }}>
         <div className="z-10 flex min-w-0 items-center">
-          <button type="button" onClick={onOpenSidebar} aria-label="Open panel" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 lg:hidden">
+          <button type="button" onClick={onOpenSidebar} aria-label="Open panel" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500   lg:hidden">
             <Menu size={17} />
           </button>
         </div>
@@ -44,7 +50,7 @@ export default function Navbar({ view, onViewChange, connected, profile, role, i
           </div>
 
           <div className="relative" ref={menuRef}>
-            <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="Open account menu" aria-expanded={menuOpen} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-50 hover:text-slate-900">
+            <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="Open account menu" aria-expanded={menuOpen} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500   ">
               <EllipsisVertical size={21} />
             </button>
 
@@ -66,7 +72,7 @@ export default function Navbar({ view, onViewChange, connected, profile, role, i
                       { id: 'driver', label: 'Driver view', icon: Bus },
                     ].filter((tab) => tab.id !== view).map(({ id, label, icon: Icon }) => (
                       <button key={id} type="button" onClick={() => { setMenuOpen(false); onViewChange(id); }}
-                        className="flex w-full items-center gap-2 border-b px-3.5 py-3 text-left text-xs font-bold text-slate-900 transition hover:bg-slate-50" style={{ borderColor: 'var(--lo-panel-border)' }}>
+                        className="flex w-full items-center gap-2 border-b px-3.5 py-3 text-left text-xs font-bold text-slate-900  " style={{ borderColor: 'var(--lo-panel-border)' }}>
                         <Icon size={14} /> {label}
                       </button>
                     ))}
@@ -74,11 +80,11 @@ export default function Navbar({ view, onViewChange, connected, profile, role, i
                 )}
                 {isAdmin && view !== 'admin' && (
                   <button type="button" onClick={() => { setMenuOpen(false); onViewChange('admin'); }}
-                    className="flex w-full items-center gap-2 border-b px-3.5 py-3 text-left text-xs font-bold transition" style={{ borderColor: 'var(--lo-panel-border)', color: 'var(--lo-primary)' }}>
+                    className="flex w-full items-center gap-2 border-b px-3.5 py-3 text-left text-xs font-bold " style={{ borderColor: 'var(--lo-panel-border)', color: 'var(--lo-primary)' }}>
                     <ShieldCheck size={14} /> Admin console
                   </button>
                 )}
-                <button type="button" onClick={handleSignOut} className="flex w-full items-center gap-2 px-3.5 py-3 text-left text-xs font-bold text-slate-900 transition hover:bg-slate-50">
+                <button type="button" onClick={() => setConfirmSignOut(true)} className="flex w-full items-center gap-2 px-3.5 py-3 text-left text-xs font-bold text-slate-900  ">
                   <LogOut size={14} /> Sign out
                 </button>
               </div>
@@ -87,8 +93,20 @@ export default function Navbar({ view, onViewChange, connected, profile, role, i
         </div>
       </header>
       {toast && (
-        <div className="lo-toast pointer-events-none fixed left-1/2 top-16 z-[2000] -translate-x-1/2 rounded-full border border-emerald-500 bg-white px-4 py-2 text-xs font-bold text-slate-900 shadow-xl">
+        <div className="lo-toast pointer-events-none fixed left-1/2 top-16 z-[9999] -translate-x-1/2 rounded-full border border-emerald-500 bg-white px-4 py-2 text-xs font-bold text-slate-900 shadow-xl">
           ✓ {toast}
+        </div>
+      )}
+      {confirmSignOut && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <p className="text-sm font-bold text-slate-900">Sign out of LookOut?</p>
+            <p className="mt-1 text-xs text-slate-500">Your current session will end.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmSignOut(false)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">Cancel</button>
+              <button type="button" onClick={handleSignOut} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Sign out</button>
+            </div>
+          </div>
         </div>
       )}
     </>

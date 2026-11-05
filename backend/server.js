@@ -18,6 +18,13 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
+let firebaseAdmin = null;
+try {
+  firebaseAdmin = require('firebase-admin');
+  if (!firebaseAdmin.apps.length) firebaseAdmin.initializeApp();
+} catch (error) {
+  console.warn('[Admin password] Firebase Admin unavailable:', error.message);
+}
 
 const { getRoutes } = require('./data/lptrp-routes');
 
@@ -41,7 +48,7 @@ const MAX_POKES_KEPT = 50;
  * CORS_ORIGIN env var, e.g.
  *   CORS_ORIGIN=https://look-out.pages.dev,http://localhost:5173
  */
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '*')
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : '*'))
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -55,8 +62,68 @@ const app = express();
 app.set('trust proxy', 1);
 
 // CORS must be registered before any route handler.
-app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || CORS_ORIGIN === '*' || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
+    else callback(new Error('Origin is not allowed'));
+  },
+}));
+app.use(express.json({ limit: '100kb' }));
+
+async function requireAdmin(req, res, next) {
+  if (!firebaseAdmin) {
+    res.status(503).json({ error: 'Firebase Admin is not configured on the server.' });
+    return;
+  }
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) {
+    res.status(401).json({ error: 'Authentication required.' });
+    return;
+  }
+  try {
+    const decoded = await firebaseAdmin.auth().verifyIdToken(token);
+    const profile = await firebaseAdmin.firestore().collection('users').doc(decoded.uid).get();
+    if (decoded.admin !== true && profile.data()?.role !== 'admin') {
+      res.status(403).json({ error: 'Administrator access required.' });
+      return;
+    }
+    req.adminAuth = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid or expired authentication token.' });
+  }
+}
+
+app.patch('/admin/users/:uid/password', requireAdmin, async (req, res) => {
+  if (!firebaseAdmin) return res.status(503).json({ error: 'Password service is not configured on the server.' });
+  const password = String(req.body.password || '');
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  if (req.params.uid === req.adminAuth.uid) return res.status(400).json({ error: 'Use account settings to change your own password.' });
+
+  try {
+    await firebaseAdmin.auth().updateUser(req.params.uid, { password });
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    return res.status(error.code === 'auth/user-not-found' ? 404 : 401).json({ error: error.message || 'Password update failed.' });
+  }
+});
+
+app.delete('/admin/users/:uid', requireAdmin, async (req, res) => {
+  if (req.params.uid === req.adminAuth.uid) {
+    return res.status(400).json({ error: 'The signed-in administrator cannot delete their own account.' });
+  }
+  try {
+    await firebaseAdmin.auth().deleteUser(req.params.uid);
+    await firebaseAdmin.firestore().collection('users').doc(req.params.uid).delete();
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    return res.status(error.code === 'auth/user-not-found' ? 404 : 500).json({
+      error: error.code === 'auth/user-not-found'
+        ? 'Account not found.'
+        : error.message || 'Account deletion failed.',
+    });
+  }
+});
 
 /**
  * Root health probe. Render (and most uptime monitors) verify deploys by
@@ -123,7 +190,21 @@ const io = new Server(httpServer, {
   cors: { origin: CORS_ORIGIN, methods: ['GET', 'POST'] },
   pingInterval: 20000,
   pingTimeout: 25000,
+  maxHttpBufferSize: 2 * 1024 * 1024,
 });
+
+if (process.env.NODE_ENV === 'production' && firebaseAdmin) {
+  io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Authentication required'));
+    try {
+      await firebaseAdmin.auth().verifyIdToken(token);
+      return next();
+    } catch {
+      return next(new Error('Invalid or expired authentication token'));
+    }
+  });
+}
 
 function liveCount() {
   return Object.keys(activeDrivers).length;
@@ -198,6 +279,11 @@ io.on('connection', (socket) => {
     const lat = Number(payload.lat);
     const lng = Number(payload.lng);
 
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      socket.emit('invalidPayload', { event: 'updateLocation', reason: 'Coordinates are out of range' });
+      return;
+    }
+
     if (!vehicleId || !Number.isFinite(lat) || !Number.isFinite(lng)) {
       socket.emit('invalidPayload', {
         event: 'updateLocation',
@@ -245,6 +331,14 @@ io.on('connection', (socket) => {
     if (!result) return;
     io.emit('pokeReceived', result);
     console.log(`[👋] Poke → ${result.plate} (total ${result.count}) from ${result.poke.fromName}`);
+  });
+
+  socket.on('emergency_radio', (audioBuffer) => {
+    if (!audioBuffer || (audioBuffer.byteLength || audioBuffer.length || 0) > 1024 * 1024) {
+      socket.emit('radioError', { message: 'Transmission is too large.' });
+      return;
+    }
+    socket.broadcast.emit('emergency_radio', audioBuffer);
   });
 
   /** Driver pressed "End Trip" — remove instantly instead of waiting for disconnect. */

@@ -26,3 +26,9 @@ export const socket = io(BACKEND_URL, {
   // WebSocket first, long-polling fallback — survives restrictive proxies.
   transports: ['websocket', 'polling'],
 });
+
+export function configureSocketToken(token) {
+  socket.auth = token ? { token } : {};
+  if (socket.connected) socket.disconnect().connect();
+  else if (!socket.active) socket.connect();
+}
