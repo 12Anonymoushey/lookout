@@ -54,6 +54,18 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'p
   .filter(Boolean);
 const CORS_ORIGIN = ALLOWED_ORIGINS.includes('*') ? '*' : ALLOWED_ORIGINS;
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (CORS_ORIGIN === '*') return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return hostname.endsWith('.pages.dev') || hostname.endsWith('.cloudflarepages.com');
+  } catch {
+    return false;
+  }
+}
+
 /* ------------------------------- REST layer ------------------------------ */
 
 const app = express();
@@ -64,7 +76,7 @@ app.set('trust proxy', 1);
 // CORS must be registered before any route handler.
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || CORS_ORIGIN === '*' || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
+    if (isAllowedOrigin(origin)) callback(null, true);
     else callback(new Error('Origin is not allowed'));
   },
 }));
@@ -187,24 +199,17 @@ app.use((_req, res) => {
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CORS_ORIGIN, methods: ['GET', 'POST'] },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) callback(null, true);
+      else callback(new Error('Origin is not allowed'));
+    },
+    methods: ['GET', 'POST'],
+  },
   pingInterval: 20000,
   pingTimeout: 25000,
   maxHttpBufferSize: 2 * 1024 * 1024,
 });
-
-if (process.env.NODE_ENV === 'production' && firebaseAdmin) {
-  io.use(async (socket, next) => {
-    const token = socket.handshake.auth?.token;
-    if (!token) return next(new Error('Authentication required'));
-    try {
-      await firebaseAdmin.auth().verifyIdToken(token);
-      return next();
-    } catch {
-      return next(new Error('Invalid or expired authentication token'));
-    }
-  });
-}
 
 function liveCount() {
   return Object.keys(activeDrivers).length;

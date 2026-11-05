@@ -109,23 +109,24 @@ export default function App() {
 
   const loadRoutes = useCallback(async () => {
     setRoutesError('');
-    try {
-      const healthRes = await fetch(`${BACKEND_URL}/api/health`);
-      if (!healthRes.ok) throw new Error(`HTTP ${healthRes.status}`);
-      await healthRes.json();
-    } catch (err) {
-      setRoutesError(`Cannot reach backend (${err.message}). Press Retry.`);
-      return;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      try {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15000);
+        const res = await fetch(`${BACKEND_URL}/api/routes`, { signal: controller.signal, cache: 'no-store' });
+        window.clearTimeout(timeout);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.routes)) throw new Error(data.error || 'Malformed response');
+        setRoutes(data.routes);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < 4) await new Promise((resolve) => window.setTimeout(resolve, attempt * 1200));
+      }
     }
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/routes`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!data.success || !Array.isArray(data.routes)) throw new Error(data.error || 'Malformed response');
-      setRoutes(data.routes);
-    } catch (err) {
-      setRoutesError(`Backend online but /api/routes failed — ${err.message}`);
-    }
+    setRoutesError(`Cannot reach backend (${lastError?.message || 'network error'}).`);
   }, []);
 
   useEffect(() => {

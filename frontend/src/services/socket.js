@@ -25,6 +25,8 @@ export const socket = io(BACKEND_URL, {
   reconnectionDelayMax: 5000,
   // WebSocket first, long-polling fallback — survives restrictive proxies.
   transports: ['websocket', 'polling'],
+  timeout: 15000,
+  forceNew: false,
 });
 
 export function configureSocketToken(token) {
