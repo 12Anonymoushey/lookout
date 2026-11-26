@@ -98,14 +98,16 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-slate-50 text-slate-900">
-      <main ref={scrollRef} className="auth-page-scroll h-full w-full snap-y snap-mandatory overflow-y-auto overflow-x-hidden">
-      <section id="auth-top" className="flex min-h-[100svh] snap-start flex-col items-center justify-center px-4 py-6">
-        <div className="auth-card-enter flex w-full max-w-md flex-col items-center gap-4">
-          <img src={logoImg} alt="Look Out!" className="h-16 w-16 rounded-2xl object-cover shadow-sm" />
-          <div className="w-full rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.10)] sm:p-6">
+    <div className="relative h-dvh w-full overflow-hidden bg-dark-blue">
+      <main ref={scrollRef} className="auth-page-scroll h-full w-full snap-y snap-mandatory overflow-y-auto overflow-x-hidden bg-dark-blue">
+      <section id="auth-top" className="flex min-h-[100svh] snap-start flex-col items-center justify-center bg-dark-blue">
+        <div className="bg-white w-full min-h-66">
+          <img src={logoImg} alt="LookOut!" className="h-16 w-16 rounded-2xl object-cover shadow-green-card-north-east mx-auto mt-2" />
+          <img src={bannerImg} alt="LookOut! Banner" className="h-50 w-full mb-[-2px]" />
+        </div>
+        <div className="auth-card-enter flex w-full max-w-md flex-col items-center gap-4 px-4 py-6 mt-[-40px]">
+          <div className="w-full rounded-3xl border border-slate-200 bg-white p-4 shadow-green-card sm:p-6">
             <h1 className="mb-4 text-center text-xl font-extrabold tracking-tight text-slate-900">{isSignup ? 'Create account' : 'Log in'}</h1>
-
             <div className="relative mb-5 flex rounded-2xl bg-slate-50 p-1.5" role="tablist" aria-label="Choose account type">
               <span className={`auth-segment-pill ${role === 'driver' ? 'auth-segment-pill--driver' : ''}`} aria-hidden="true" />
               {AUTH_TABS.map((entry) => {
@@ -168,7 +170,7 @@ export default function AuthScreen() {
                   </>
                 )}
 
-                <button type="submit" disabled={busy} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white shadow-lg   disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="submit" disabled={busy} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 shadow-green-card text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
                   {busy ? <><Loader2 size={16} className="animate-spin" /> Please wait</> : <>{isSignup ? 'Create account' : 'Log in'} <ArrowRight size={16} /></>}
                 </button>
               </form>

@@ -1,10 +1,12 @@
 # 🚌 Look Out! — Real-Time PUV Transit Tracker
 
+Full project guide: [How this Web App Works](docs/HOW-THIS-WEB-APP-WORKS.md) — architecture, complete feature inventory, source file/line map, APIs, libraries, data storage, and React/Node learning topics.
+
 A 100% free-tier capstone project for 3rd-year IT students: track Iloilo City
 **public utility vehicles (PUVs)** live on a map, tailored to **LPTRP routes**
 (Ungka–ITGSI Loop, Tagbak–City Proper, Mandurriao–Jaro Plaza, Villa Beach–City Proper).
 
-No API keys. No credit cards. OpenStreetMap + open-source only.
+The map uses OpenStreetMap tiles; current weather and route-time estimates use the public Open-Meteo and OSRM services. Firebase configuration is needed for registered accounts and Firestore-backed data; demo mode is available without Firebase. No Google Maps API is used.
 
 ## Tech Stack
 

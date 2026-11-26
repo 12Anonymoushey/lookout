@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import L from 'leaflet';
 import { Circle, CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip } from 'react-leaflet';
 import {
   Bookmark,
   Bus,
-  Check,
   Clock,
   CloudRain,
   Hand,
-  Loader2,
   LocateFixed,
   MapPin,
   Radio,
@@ -19,13 +18,12 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import AppShell, { InfoRow, ProfileScreen, Section } from './AppShell.jsx';
-import PulseDot from './PulseDot.jsx';
+import AppShell, { AnimatedPopup, InfoRow, ProfileScreen, Section } from './AppShell.jsx';
 import VehicleMarker from './VehicleMarker.jsx';
 import AntiBunchingSpatialLayer from './AntiBunchingSpatialLayer.jsx';
 import EmergencyRadio from './EmergencyRadio.jsx';
 import WeatherTab from './WeatherTab.jsx';
-import { SearchSortBar } from './KebabMenu.jsx';
+import { ExpandableListCard, SearchSortBar } from './KebabMenu.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { sendPoke } from '../services/pokeService.js';
 import { getAllAnnouncements } from '../services/announcementService.js';
@@ -49,6 +47,11 @@ const RIDE_EXIT_CONFIRM_MS = 20_000;
 
 function rideDate(ride) {
   return new Date(ride.endedAt || ride.rideAt || ride.startedAt || ride.lastTrip || ride.time || 0);
+}
+
+function formatRideDate(ride) {
+  const date = rideDate(ride);
+  return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleDateString();
 }
 
 function RideCharts({ rides }) {
@@ -131,7 +134,7 @@ function RideCharts({ rides }) {
 
 const meIcon = L.divIcon({
   className: 'lo-me-wrapper',
-  html: `<div class="lo-me"><span class="lo-me__dot"></span><span class="lo-me__label">You are here</span></div>`,
+  html: `<div class="lo-me"><span class="lo-me__pin">${renderToStaticMarkup(<MapPin size={24} strokeWidth={2.5} />)}</span><span class="lo-me__label">You are here</span></div>`,
   iconSize: [24, 24],
   iconAnchor: [12, 12],
 });
@@ -400,7 +403,6 @@ export default function CommuterView({
     return entry.state;
   }, [pokes]);
 
-  const pokesSent = useMemo(() => Object.values(pokes).filter((e) => e.state === 'sent').length, [pokes]);
 
   const handlePoke = useCallback(async (vehicle) => {
     const vid = vehicle?.vehicleId;
@@ -489,8 +491,9 @@ export default function CommuterView({
     localStorage.setItem('lo_saved_transports', JSON.stringify(next));
     setToast(`${ride.plate} added to saved rides`);
   };
+  const isRideSaved = (ride) => savedTransports.some((saved) => saved.plate === ride.plate);
 
-  /* ---- Stats ---- */
+  /* ---- Analytics ---- */
   const stats = useMemo(() => {
     if (recentRides.length === 0) return null;
     return { total: recentRides.length, routes: new Set(recentRides.map((r) => r.operatorName)).size, vehicles: new Set(recentRides.map((r) => r.plate)).size };
@@ -515,7 +518,6 @@ export default function CommuterView({
   const handleFilterChange = (v) => { setRouteFilter(v); setSelectedStop(null); setRoutePickerOpen(false); };
   const recenter = () => { mapRef.current?.flyTo(myLocation ? [myLocation.lat, myLocation.lng] : ILOILO_CENTER, myLocation ? 16 : 14, { duration: 0.8 }); };
   const routePositions = focusRoute ? (focusRoute.loop ? loopPositions(focusRoute.stops) : focusRoute.stops.map((s) => [s.lat, s.lng])) : [];
-  const locBadge = locState === 'locked' ? `±${Math.round(myLocation?.accuracy ?? 0)} m` : locState === 'locating' ? 'locating…' : locState === 'denied' ? 'location off' : 'unavailable';
 
   /* ======================== SIDEBAR PANEL ======================== */
   const panel = (
@@ -526,15 +528,16 @@ export default function CommuterView({
           role={role || 'commuter'}
           onEdit={openDetailEditor}
           fallbackName="Commuter"
+          showStatDivider={false}
           stats={[
             { label: 'Account', value: role || 'commuter' },
-            { label: 'Pokes sent', value: pokesSent },
+            { label: 'Number of rides', value: recentRides.length },
           ]}
         />
       </Section>
 
       {/* ---- Saved Transportations ---- */}
-      <Section id="commuter-saved" icon={Bookmark} title="Saved Transportations" tint="success">
+      <Section id="commuter-saved" icon={Bookmark} title="Saved Transportations" tint="success" flat>
         <SearchSortBar search={savedSearch} onSearchChange={setSavedSearch} sortField={savedSort.field} sortDir={savedSort.dir}
           onSortToggle={(field, dir) => setSavedSort({ field, dir })} fields={['plate', 'operatorName', 'driverName']} placeholder="Search saved…" />
 
@@ -543,7 +546,7 @@ export default function CommuterView({
             {savedTransports.length === 0 ? 'No saved PUVs yet.' : 'No matches.'}
           </p>
         ) : (
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.06)' }}>
               <label className="flex items-center gap-2 text-[9px] font-bold" style={{ color: 'var(--lo-text-secondary)' }}>
                 <input type="checkbox" checked={filteredSaved.length > 0 && filteredSaved.every((item) => selectedSaved.includes(item.id))}
@@ -552,34 +555,38 @@ export default function CommuterView({
               {selectedSaved.length > 0 && <button type="button" onClick={() => setBulkRideConfirm('saved')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedSaved.length}</button>}
             </div>
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_1fr_auto] gap-1 px-2 text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>
-              <span>Plate</span><span>Operator</span><span></span>
-            </div>
             {filteredSaved.map((t) => (
-              <div key={t.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-1 rounded-xl border px-2.5 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                <div className="min-w-0">
-                  <input type="checkbox" checked={selectedSaved.includes(t.id)}
-                    onChange={(event) => setSelectedSaved((current) => event.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id))} className="mr-2" />
-                  <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{t.plate}</p>
-                  <p className="text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>Driver: {t.driverName}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-[10px]" style={{ color: 'var(--lo-text-secondary)' }}>{t.operatorName}</p>
-                  <p className="text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>1st: {t.firstTrip}</p>
-                </div>
-                <button type="button" onClick={() => removeSaved(t.id, t.plate)} aria-label={`Untoggle saved ${t.plate}`} title="Untoggle saved ride"
-                  aria-pressed="true"
-                  className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-blue-600 text-white">
-                  <Bookmark size={15} fill="currentColor" />
-                </button>
-              </div>
+              <ExpandableListCard
+                key={t.id}
+                leading={<input type="checkbox" checked={selectedSaved.includes(t.id)}
+                  onChange={(event) => setSelectedSaved((current) => event.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id))}
+                  aria-label={`Select saved ride ${t.plate}`} />}
+                summary={
+                  <>
+                    <p className="text-[10px] font-semibold text-slate-500">
+                      {Number.isNaN(new Date(t.firstTrip || t.lastTrip || '').getTime())
+                        ? 'Date unavailable'
+                        : new Date(t.firstTrip || t.lastTrip).toLocaleDateString()}
+                    </p>
+                    <p className="truncate text-xs font-bold text-slate-900">{t.plate}</p>
+                  </>
+                }
+                details={
+                  <dl className="space-y-1 text-[10px]">
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Operator</dt><dd className="truncate text-right text-slate-900">{t.operatorName}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Driver</dt><dd className="truncate text-right text-slate-900">{t.driverName}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">First trip</dt><dd className="text-right text-slate-900">{t.firstTrip}</dd></div>
+                  </dl>
+                }
+                actions={[{ icon: Bookmark, label: 'Remove from saved', danger: true, onClick: () => removeSaved(t.id, t.plate) }]}
+              />
             ))}
           </div>
         )}
       </Section>
 
       {/* ---- Recent Rides ---- */}
-      <Section id="commuter-rides" icon={Clock} title="Recent Rides" tint="primary" defaultOpen={false}>
+      <Section id="commuter-rides" icon={Clock} title="Recent Rides" tint="primary" defaultOpen={false} flat>
         <SearchSortBar search={recentSearch} onSearchChange={setRecentSearch} sortField={recentSort.field} sortDir={recentSort.dir}
           onSortToggle={(field, dir) => setRecentSort({ field, dir })} fields={['plate', 'operatorName', 'driverName']} placeholder="Search rides…" />
 
@@ -588,7 +595,7 @@ export default function CommuterView({
             {recentRides.length === 0 ? 'No rides yet. Tap a PUV and press Ride.' : 'No matches.'}
           </p>
         ) : (
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.06)' }}>
               <label className="flex items-center gap-2 text-[9px] font-bold" style={{ color: 'var(--lo-text-secondary)' }}>
                 <input type="checkbox" checked={filteredRecent.length > 0 && filteredRecent.every((item) => selectedRecent.includes(item.id))}
@@ -596,39 +603,49 @@ export default function CommuterView({
               </label>
               {selectedRecent.length > 0 && <button type="button" onClick={() => setBulkRideConfirm('recent')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedRecent.length}</button>}
             </div>
-            <div className="grid grid-cols-[1fr_1fr_auto] gap-1 px-2 text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>
-              <span>Plate</span><span>Operator</span><span></span>
-            </div>
-            {filteredRecent.map((r) => (
-              <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-1 rounded-xl border px-2.5 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                <div className="min-w-0">
-                  <input type="checkbox" checked={selectedRecent.includes(r.id)}
-                    onChange={(event) => setSelectedRecent((current) => event.target.checked ? [...current, r.id] : current.filter((id) => id !== r.id))} className="mr-2" />
-                  <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{r.plate}</p>
-                  <p className="text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>Driver: {r.driverName}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-[10px]" style={{ color: 'var(--lo-text-secondary)' }}>{r.operatorName}</p>
-                  <p className="text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>Last: {r.lastTrip}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => saveRecentRide(r)} aria-label={`${savedTransports.some((saved) => saved.plate === r.plate) ? 'Unsaved' : 'Save'} ride with ${r.plate}`} title={savedTransports.some((saved) => saved.plate === r.plate) ? 'Unsaved' : 'Save ride'}
-                    className={`flex min-h-11 min-w-11 items-center justify-center rounded-xl border disabled:cursor-default ${savedTransports.some((saved) => saved.plate === r.plate) ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'}`}
-                    style={{ borderColor: 'var(--lo-primary)' }}>
-                    <Bookmark size={15} fill={savedTransports.some((saved) => saved.plate === r.plate) ? 'currentColor' : 'none'} />
-                  </button>
-                  <button type="button" onClick={() => removeRecent(r.id, r.plate)} aria-label={`Delete ride with ${r.plate}`} title="Delete recent ride"
-                    className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-red-500" style={{ color: 'var(--lo-critical)' }}>
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-            ))}
+            {filteredRecent.map((r) => {
+              const isSaved = isRideSaved(r);
+              return (
+              <ExpandableListCard
+                key={r.id}
+                leading={<input type="checkbox" checked={selectedRecent.includes(r.id)}
+                  onChange={(event) => setSelectedRecent((current) => event.target.checked ? [...current, r.id] : current.filter((id) => id !== r.id))}
+                  aria-label={`Select ride ${r.plate}`} />}
+                summary={
+                  <>
+                    <p className="text-[10px] font-semibold text-slate-500">{formatRideDate(r)}</p>
+                    <div className="flex items-center gap-1">
+                      <p className="truncate text-xs font-bold text-slate-900">{r.plate}</p>
+                      <button
+                        type="button"
+                        onClick={() => saveRecentRide(r)}
+                        aria-label={isSaved ? `Remove ${r.plate} from saved rides` : `Save ${r.plate} to saved rides`}
+                        aria-pressed={isSaved}
+                        className={`flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full ${isSaved ? 'text-blue-600' : 'text-slate-500'}`}
+                      >
+                        <Bookmark size={15} fill={isSaved ? 'currentColor' : 'none'} />
+                      </button>
+                    </div>
+                  </>
+                }
+                details={
+                  <dl className="space-y-1 text-[10px]">
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Operator</dt><dd className="truncate text-right text-slate-900">{r.operatorName}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Driver</dt><dd className="truncate text-right text-slate-900">{r.driverName}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Time</dt><dd className="text-right text-slate-900">{r.lastTrip}</dd></div>
+                  </dl>
+                }
+                actions={[
+                  { icon: Trash2, label: 'Delete ride', danger: true, onClick: () => removeRecent(r.id, r.plate) },
+                ]}
+              />
+              );
+            })}
           </div>
         )}
       </Section>
 
-      <Section icon={Star} title="Stats" tint="primary" defaultOpen={false}>
+      <Section icon={Star} title="Analytics" tint="primary" defaultOpen={false}>
         {stats ? (
           <div className="space-y-3">
             <InfoRow label="Total rides" value={stats.total} />
@@ -642,29 +659,20 @@ export default function CommuterView({
       </Section>
 
       {/* ---- Announcements ---- */}
-      <Section icon={Megaphone} title="Announcements" tint="success" defaultOpen={false}>
+      <Section icon={Megaphone} title="Announcements" tint="success" defaultOpen={false} flat>
         {announcements.length === 0 ? (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
         ) : (
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
+          <div className="space-y-1.5">
             {announcements.map((a) => (
-              <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
-                <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
-                <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.driverName} · {a.plate} · {a.createdAt}</p>
-              </div>
+            <ExpandableListCard
+              key={a.id}
+              summary={<><p className="text-[10px] font-semibold text-slate-500">{a.createdAt}</p><p className="truncate text-xs font-bold text-slate-900">{a.title}</p></>}
+              details={<><p className="text-[10px] leading-relaxed text-slate-700">{a.message}</p><p className="mt-1 text-[9px] text-slate-500">{a.driverName} · {a.plate}</p></>}
+            />
             ))}
           </div>
         )}
-      </Section>
-
-      <Section icon={Route} title="Live Fleet" tint="primary" defaultOpen={false}>
-        <InfoRow label="Live vehicles" value={visibleVehicles.length} />
-        <InfoRow label="My point" value={locBadge} />
-      </Section>
-
-      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false}>
-        <EmergencyRadio logs={radioLogs} playingId={playingRadioId} />
       </Section>
 
       <Section icon={CloudRain} title="Weather & Analytics" tint="primary" defaultOpen={false}>
@@ -720,7 +728,7 @@ export default function CommuterView({
         <div className="pointer-events-none absolute left-2 top-2 z-[1000] lg:left-3 lg:top-3">
           <div className="pointer-events-auto flex h-10 items-center gap-2 rounded-full border px-3 shadow-xl backdrop-blur" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-panel)' }}>
             <span className="flex items-center gap-1.5">
-              <PulseDot color="emerald" />
+             <Radio size={14} className="text-[#14B383]" aria-hidden="true" />
               <span className="text-[11px] font-bold" style={{ color: 'var(--lo-primary)' }}>{visibleVehicles.length} live</span>
             </span>
           </div>
@@ -774,41 +782,24 @@ export default function CommuterView({
             {approaching.length === 0 ? (
               <p className="py-3 text-center text-xs" style={{ color: 'var(--lo-text-secondary)' }}>No live vehicles on this route.</p>
             ) : (
-              <ul className="max-h-56 space-y-1.5 overflow-y-auto">
+              <div className="max-h-56 space-y-1.5 overflow-y-auto">
                 {approaching.map(({ vehicle, km, etaMin: _etaMin }) => {
                   const meta = statusMeta(vehicle);
                   const state = pokeStateOf(vehicle.vehicleId);
                   return (
-                    <li key={vehicle.vehicleId} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold" style={{ color: 'var(--lo-text)' }}>{vehicle.vehicleId}</p>
-                          <p className="font-mono text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>{(Number(vehicle.speed) || 0).toFixed(0)} km/h · {formatKm(km)} away</p>
-                        </div>
-                        <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-right text-slate-900">
-                          {vehicle === routeTarget ? (
-                            <><strong className="block text-2xl leading-none text-slate-900">{routeEtaLoading && routeEtaMinutes == null ? '…' : routeEtaMinutes ?? '—'}</strong><span className="text-[9px] font-bold text-slate-500">MIN</span></>
-                          ) : (
-                            <span className="text-[11px] font-bold text-slate-500">OSRM</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: meta.soft, color: 'var(--lo-text)' }}>{meta.label}</span>
-                        <div className="flex items-center gap-1.5">
-                          <button type="button" onClick={() => addRecentRide(vehicle)}
-                            className="min-h-11 rounded-xl bg-blue-600 px-3 text-xs font-bold text-white  ">Ride</button>
-                          <button type="button" onClick={() => handlePoke(vehicle)} disabled={state !== 'idle'}
-                            className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-emerald-500 px-3 text-xs font-bold text-slate-900  ">
-                            {state === 'sending' ? <Loader2 size={11} className="animate-spin" /> : state === 'sent' ? <Check size={11} /> : <Hand size={11} />}
-                            {state === 'sent' ? 'Poked' : 'Poke'}
-                          </button>
-                        </div>
-                      </div>
-                    </li>
+                    <ExpandableListCard
+                      key={vehicle.vehicleId}
+                      leading={<Bus size={15} className="mt-0.5 shrink-0 text-blue-600" />}
+                      summary={<><p className="truncate text-xs font-bold text-slate-900">{vehicle.vehicleId}</p><p className="text-[10px] text-slate-500">{formatKm(km)} away · {meta.label}</p></>}
+                      details={<dl className="grid grid-cols-2 gap-2 text-[10px]"><div><dt className="text-slate-500">Speed</dt><dd className="font-semibold text-slate-900">{(Number(vehicle.speed) || 0).toFixed(0)} km/h</dd></div><div><dt className="text-slate-500">ETA</dt><dd className="font-semibold text-slate-900">{vehicle === routeTarget ? (routeEtaLoading && routeEtaMinutes == null ? '…' : `${routeEtaMinutes ?? '—'} min`) : 'Unavailable'}</dd></div><div className="col-span-2"><dt className="text-slate-500">Status</dt><dd className="font-semibold text-slate-900">{meta.label}</dd></div></dl>}
+                      actions={[
+                        { icon: Bus, label: 'Ride', onClick: () => addRecentRide(vehicle) },
+                        { icon: Hand, label: state === 'sending' ? 'Sending poke…' : state === 'sent' ? 'Poked' : 'Poke', disabled: state !== 'idle', onClick: () => handlePoke(vehicle) },
+                      ]}
+                    />
                   );
                 })}
-              </ul>
+              </div>
             )}
           </div>
         )}
@@ -820,16 +811,18 @@ export default function CommuterView({
           </div>
         )}
 
-        {bulkRideConfirm && (
-          <div className="absolute inset-x-4 bottom-5 z-[1200] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
-            <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
-            <p className="mt-1 text-[10px] text-slate-500">Delete the selected {bulkRideConfirm === 'saved' ? 'saved rides' : 'recent rides'}?</p>
-            <div className="mt-3 flex justify-end gap-2">
-              <button type="button" onClick={() => setBulkRideConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">Cancel</button>
-              <button type="button" onClick={confirmBulkRideDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
-            </div>
-          </div>
-        )}
+        <AnimatedPopup open={Boolean(bulkRideConfirm)}>
+          {bulkRideConfirm && (
+              <div role="dialog" aria-modal="true" aria-label="Confirm deletion" className="lo-dialog-card w-full max-w-sm p-4">
+                <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
+                <p className="mt-1 text-[10px] text-slate-500">Delete the selected {bulkRideConfirm === 'saved' ? 'saved rides' : 'recent rides'}?</p>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => setBulkRideConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">Cancel</button>
+                  <button type="button" onClick={confirmBulkRideDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
+                </div>
+              </div>
+          )}
+        </AnimatedPopup>
 
         {activeRide && (
           <div role="status" className="pointer-events-none absolute left-1/2 top-28 z-[1100] flex w-[calc(100%-1rem)] max-w-sm -translate-x-1/2 items-center gap-3 rounded-2xl border border-blue-600 bg-white px-4 py-3 shadow-xl"
@@ -853,9 +846,9 @@ export default function CommuterView({
       </div>
 
       {/* ---- Edit My Details modal ---- */}
-      {editingDetails && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
-          <div role="dialog" aria-modal="true" aria-label="Edit details" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
+      <AnimatedPopup open={Boolean(editingDetails)}>
+        {editingDetails && (
+          <div role="dialog" aria-modal="true" aria-label="Edit details" className="lo-dialog-card max-h-[90dvh] w-full max-w-sm overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:mx-4 sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Details</h3>
               <button type="button" onClick={() => setEditingDetails(false)} aria-label="Close edit details dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
@@ -879,8 +872,8 @@ export default function CommuterView({
               <button type="button" onClick={saveDetails} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
     </AppShell>
   );
 }

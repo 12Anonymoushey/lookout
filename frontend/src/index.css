@@ -10,10 +10,15 @@
   --color-red-500: #EF4444;
   --color-slate-900: #0F172A;
   --color-slate-500: #64748B;
+  --color-dark-blue: #121E35;
+  --color-light-blue: #2563EB;
+  --color-green: #14B383;
+  --shadow-green-card: 7px 15px 1px 3px #14B383;
+  --shadow-green-card-north-east: 4px -3px 1px 2px #14B383;
 }
 
 :root {
-  --lo-bg: var(--color-slate-50);
+  --lo-bg: var(--color-slate-200);
   --lo-panel: var(--color-white);
   --lo-panel-border: var(--color-slate-200);
   --lo-card: var(--color-white);
@@ -48,6 +53,170 @@ body {
 select option {
   background-color: var(--lo-panel);
   color: var(--lo-text);
+}
+
+.lo-glass-surface,
+.lo-glass-sidebar {
+  isolation: isolate;
+  border: 2px solid #14B383;
+  background: linear-gradient(
+    135deg,
+    rgba(16, 27, 47, 0.72) 0%,
+    rgba(35, 107, 235, 0.28) 50%,
+    rgba(20, 179, 131, 0.22) 80%,
+    rgba(97, 140, 140, 0.35) 100%
+  );
+  box-shadow: inset 0 1px 1px rgba(245, 248, 252, 0.5), 0 12px 32px rgba(16, 27, 47, 0.45);
+  backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+}
+
+.lo-glass-surface {
+  position: relative;
+}
+
+.lo-glass-surface::before {
+  position: absolute;
+  z-index: -1;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 24px;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 27, 47, 0.38) 0%,
+    rgba(35, 107, 235, 0.18) 50%,
+    rgba(20, 179, 131, 0.08) 75%,
+    transparent 100%
+  );
+  content: '';
+  pointer-events: none;
+  backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+}
+
+.lo-glass-sidebar {
+  border-right-width: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(16, 27, 47, 0.94) 0%,
+    rgba(35, 107, 235, 0.82) 50%,
+    rgba(20, 179, 131, 0.76) 80%,
+    rgba(97, 140, 140, 0.86) 100%
+  );
+}
+
+.lo-desktop-sidebar {
+  position: relative;
+}
+
+.lo-glass-sidebar::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: -24px;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(
+    90deg,
+    rgba(16, 27, 47, 0.38) 0%,
+    rgba(35, 107, 235, 0.18) 50%,
+    rgba(20, 179, 131, 0.08) 75%,
+    transparent 100%
+  );
+  content: '';
+  pointer-events: none;
+  backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+  mask-image: linear-gradient(90deg, #000 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, transparent 100%);
+}
+
+.lo-glass-surface .bg-emerald-500 {
+  background-color: #14B383;
+}
+
+.lo-glass-surface .bg-slate-500 {
+  background-color: #DFE3E9;
+}
+
+.lo-glass-sidebar .lo-sidebar-tab:hover,
+.lo-glass-sidebar .lo-sidebar-tab:focus-visible {
+  background-color: rgba(35, 107, 235, 0.2);
+  color: #F5F8FC;
+}
+
+.lo-dialog-backdrop {
+  position: fixed;
+  z-index: 9990;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(16, 27, 47, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+@keyframes lo-dialog-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lo-dialog-backdrop-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes lo-dialog-grow {
+  from { opacity: 0; transform: translateY(8px) scale(0.88); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lo-dialog-shrink {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(6px) scale(0.9); }
+}
+
+.lo-dialog-enter {
+  animation: lo-dialog-backdrop-enter 220ms ease both;
+}
+
+.lo-dialog-enter > * {
+  animation: lo-dialog-grow 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.lo-dialog-exit {
+  animation: lo-dialog-backdrop-exit 220ms ease both;
+}
+
+.lo-dialog-exit > * {
+  animation: lo-dialog-shrink 220ms ease-in both;
+}
+
+.lo-dialog-card {
+  border: 2px solid #14B383 !important;
+  border-radius: 1.5rem !important;
+  background: #FFFFFF !important;
+  box-shadow: 7px 15px 1px 3px #14B383 !important;
+}
+
+.lo-list-card {
+  border: 0 !important;
+  border-radius: 1.5rem !important;
+  background: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+#root :is(div, section, article, li)[class*="rounded-"]:not([class*="rounded-full"]):is([class*="bg-white"], [class*="bg-slate-50"], [style*="var(--lo-card)"], [style*="var(--lo-panel)"]) {
+  box-shadow: var(--shadow-green-card);
+}
+
+#root :is(div, section, article, li)[class*="rounded-"]:not([class*="rounded-full"]):is([class*="bg-white"], [class*="bg-slate-50"], [style*="var(--lo-card)"], [style*="var(--lo-panel)"]) :is(div, section, article, li)[class*="rounded-"]:not([class*="rounded-full"]):is([class*="bg-white"], [class*="bg-slate-50"], [style*="var(--lo-card)"], [style*="var(--lo-panel)"]) {
+  box-shadow: none !important;
 }
 
 #root button {
@@ -112,26 +281,24 @@ select option {
     box-shadow var(--lo-motion-base) var(--lo-motion-ease);
 }
 
-@keyframes lo-screen-enter {
-  from {
-    opacity: 0;
-    transform: translateX(12px) scale(0.995);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+@keyframes lo-screen-switch-enter {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes lo-content-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes lo-screen-switch-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-24px); }
+}
+
+@keyframes lo-tab-switch-enter {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes lo-tab-switch-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-12px); }
 }
 
 @keyframes lo-modal-enter {
@@ -145,16 +312,82 @@ select option {
   }
 }
 
-.lo-screen-enter {
-  animation: lo-screen-enter 180ms var(--lo-motion-ease) both;
+.lo-transition-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
 }
 
-.lo-screen-enter > header,
-.lo-screen-enter > div > section {
-  animation: lo-content-enter var(--lo-motion-base) var(--lo-motion-ease) both;
+.lo-transition-stack--fill {
+  position: absolute;
+  inset: 0;
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
 }
 
-#root [role='dialog'] > div {
+.lo-transition-stack--fill:empty {
+  pointer-events: none;
+}
+
+.lo-transition-panel {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.lo-transition-stack--fill > .lo-transition-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lo-transition-screen-enter,
+.lo-transition-screen-exit,
+.lo-role-screen-enter {
+  animation: lo-screen-switch-enter 220ms var(--lo-motion-ease) both;
+}
+
+.lo-transition-screen-exit {
+  animation-name: lo-screen-switch-exit;
+  pointer-events: none;
+}
+
+.lo-transition-tab-enter {
+  animation: lo-tab-switch-enter 220ms var(--lo-motion-ease) both;
+}
+
+.lo-transition-tab-exit {
+  animation: lo-tab-switch-exit 220ms var(--lo-motion-ease) both;
+  pointer-events: none;
+}
+
+.lo-tab-content {
+  animation: lo-tab-switch-enter 220ms var(--lo-motion-ease) both;
+}
+
+.lo-account-menu {
+  transform-origin: top right;
+}
+
+@keyframes lo-account-menu-enter {
+  from { opacity: 0; transform: translateY(-7px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lo-account-menu-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-5px) scale(0.94); }
+}
+
+.lo-account-menu-enter {
+  animation: lo-account-menu-enter 200ms var(--lo-motion-ease) both;
+}
+
+.lo-account-menu-exit {
+  animation: lo-account-menu-exit 200ms ease-in both;
+  pointer-events: none;
+}
+
+#root [role='dialog']:not(.lo-sheet-enter):not(.lo-sheet-exit):not(.lo-mobile-drawer) > div {
   animation: lo-modal-enter var(--lo-motion-enter) var(--lo-motion-ease) both;
 }
 
@@ -286,12 +519,13 @@ a.leaflet-popup-close-button {
   height: 24px;
 }
 
-.lo-me__dot {
-  position: absolute;
-  inset: 4px;
-  border-radius: 9999px;
-  background: var(--lo-success);
-  border: 2px solid var(--lo-bg);
+.lo-me__pin {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  color: #14B383;
 }
 
 .lo-me__label {
@@ -409,7 +643,7 @@ a.leaflet-popup-close-button {
   left: 6px;
   width: calc(50% - 6px);
   border-radius: 0.75rem;
-  background: var(--color-blue-600);
+  background: var(--color-light-blue);
   box-shadow: 0 5px 14px rgba(37, 99, 235, 0.22);
   transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -485,6 +719,11 @@ a.leaflet-popup-close-button {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes lo-pop-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-5px) scale(0.92); }
+}
+
 @keyframes lo-route-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -492,6 +731,56 @@ a.leaflet-popup-close-button {
 
 .lo-pop-enter {
   animation: lo-pop-enter 160ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.lo-pop-exit {
+  animation: lo-pop-exit 160ms ease-in both;
+}
+
+@keyframes lo-sheet-grow {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lo-sheet-shrink {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(12px) scale(0.97); }
+}
+
+.lo-sheet-enter {
+  animation: lo-sheet-grow 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.lo-sheet-exit {
+  animation: lo-sheet-shrink 220ms ease-in both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-dialog-enter,
+  .lo-dialog-enter > *,
+  .lo-dialog-exit,
+  .lo-dialog-exit > *,
+  .lo-pop-enter,
+  .lo-pop-exit,
+  .lo-sheet-enter,
+  .lo-sheet-exit,
+  .lo-transition-screen-enter,
+  .lo-transition-screen-exit,
+  .lo-transition-tab-enter,
+  .lo-transition-tab-exit,
+  .lo-tab-content,
+  .lo-role-screen-enter,
+  .lo-account-menu-enter,
+  .lo-account-menu-exit {
+    animation-duration: 1ms !important;
+  }
+
+  #root .lo-desktop-sidebar,
+  .lo-mobile-drawer,
+  .lo-mobile-drawer-backdrop {
+    transition-duration: 1ms !important;
+  }
 }
 
 .lo-sidebar-tab {
@@ -509,14 +798,25 @@ a.leaflet-popup-close-button {
   animation: lo-route-pop 180ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
-@keyframes lo-sidebar-enter {
-  from { opacity: 0; transform: translateX(-18px); }
-  to { opacity: 1; transform: translateX(0); }
+.lo-desktop-sidebar {
+  will-change: transform, opacity;
 }
 
-.lo-desktop-sidebar {
-  animation: lo-sidebar-enter 280ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
-  will-change: transform, opacity;
+#root .lo-desktop-sidebar {
+  transition:
+    width 280ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    min-width 280ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    transform 280ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    opacity 220ms ease;
+}
+
+.lo-mobile-drawer {
+  transition: transform 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.lo-mobile-drawer-backdrop {
+  transition: opacity 220ms ease;
 }
 
 .floating-dock__item[data-active='true'] {
@@ -556,12 +856,24 @@ a.leaflet-popup-close-button {
 
 .floating-dock {
   isolation: isolate;
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 4px solid #14B383;
   border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-  backdrop-filter: blur(12px);
+  background: linear-gradient(
+    135deg,
+    rgba(16, 27, 47, 0.94) 0%,
+    rgba(35, 107, 235, 0.82) 50%,
+    rgba(97, 112, 130, 0.76) 80%,
+    rgba(97, 140, 140, 0.86) 100%
+  );
+  box-shadow: inset 0 1px 1px rgba(245, 248, 252, 0.5), 0 12px 32px rgba(16, 27, 47, 0.45);
+  backdrop-filter: blur(28px) saturate(180%) contrast(108%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) contrast(108%);
   transform: translateX(-50%);
+}
+
+.floating-dock__item,
+.floating-dock__toggle {
+  color: #F5F8FC;
 }
 
 .floating-dock[data-collapsed='true'] {
@@ -625,10 +937,6 @@ a.leaflet-popup-close-button {
 .sidebar-nav__item:focus-visible {
   z-index: 1;
 }
-
-.sidebar-back-button {
-}
-
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-nav__item,

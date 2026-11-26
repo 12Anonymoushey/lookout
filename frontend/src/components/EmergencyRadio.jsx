@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, Play, Square } from 'lucide-react';
 import { socket } from '../services/socket.js';
+import { ExpandableListCard } from './KebabMenu.jsx';
 
 export default function EmergencyRadio({ logs = [], playingId, dockOnly = false }) {
   const recorderRef = useRef(null);
@@ -79,20 +80,17 @@ export default function EmergencyRadio({ logs = [], playingId, dockOnly = false 
       </button>
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">{error}</p>}
 
-      <div className="max-h-[min(55vh,28rem)] space-y-2 overflow-y-auto">
+      <div className="space-y-2">
         {logs.length === 0 ? (
           <p className="py-8 text-center text-xs text-slate-500">No radio transmissions in this session.</p>
         ) : logs.map((clip) => (
-          <div key={clip.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-            <button type="button" onClick={() => clip.audio?.play()} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white ${playingId === clip.id ? 'bg-emerald-500' : 'bg-slate-700'}`} aria-label="Play radio transmission">
-              <Play size={15} fill="currentColor" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-900">Emergency radio</p>
-              <p className="text-[10px] text-slate-500">{clip.time}</p>
-            </div>
-            <span className={`h-2.5 w-2.5 rounded-full ${playingId === clip.id ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-          </div>
+          <ExpandableListCard
+            key={clip.id}
+            leading={<span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${playingId === clip.id ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+            summary={<><p className="text-[10px] font-semibold text-slate-500">{clip.time}</p><p className="text-xs font-bold text-slate-900">Emergency radio</p></>}
+            details={<p className="text-[10px] text-slate-700">{playingId === clip.id ? 'Currently playing' : 'Recorded transmission'}</p>}
+            actions={[{ icon: Play, label: 'Play transmission', onClick: () => clip.audio?.play() }]}
+          />
         ))}
       </div>
     </div>

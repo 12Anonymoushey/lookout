@@ -1,15 +1,3 @@
-/**
- * Look Out! — auth context.
- *
- * The whole app reads the session from here: who is signed in, which role tab
- * they belong to, and which plate numbers (drivers) they own.
- *
- * Three states are possible:
- *   • ready && !session           → show the Login / Signup screen
- *   • ready && profile.role       → the dashboard, pre-seeded to that role
- *   • !firebaseReady && demo      → DEMO MODE (no accounts, local session only)
- */
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   createProfile,

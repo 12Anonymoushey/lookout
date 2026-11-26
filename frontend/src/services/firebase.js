@@ -1,30 +1,3 @@
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- *  LOOK OUT! — Firebase bootstrap  (Auth + Firestore)
- * ─────────────────────────────────────────────────────────────────────────────
- *  PASTE YOUR CONFIG BELOW.  Firebase console → Project settings → Your apps →
- *  Web app → "SDK setup and configuration" → Config, then copy each value into
- *  the matching key of `firebaseConfig` (keep the quotes).
- *
- *  │ const firebaseConfig = {
- *  │   apiKey: "AIzaSy....",
- *  │   authDomain: "look-out-xxxxx.firebaseapp.com",
- *  │   projectId: "look-out-xxxxx",
- *  │   storageBucket: "look-out-xxxxx.appspot.com",
- *  │   messagingSenderId: "1234567890",
- *  │   appId: "1:1234567890:web:abcdef123456",
- *  │ };
- *
- *  Then enable, in the Firebase console:
- *    1. Build → Authentication → Sign-in method → Email/Password → Enable
- *    2. Build → Firestore Database → Create database (production mode is fine)
- *       and paste the rules from /firestore.rules (repo root) into the Rules tab.
- *
- *  Until real values are pasted, `isFirebaseConfigured` stays false and the app
- *  runs in DEMO MODE (no accounts, local session only) so the map keeps working.
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';

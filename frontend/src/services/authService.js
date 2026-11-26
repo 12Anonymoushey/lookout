@@ -1,17 +1,3 @@
-/**
- * Look Out! — account layer.
- *
- * Auth        : Firebase Authentication (email + password)
- * Database    : Cloud Firestore  →  `users/{uid}` profile documents
- *
- * Profile document shape
- * {
- *   uid, role: 'commuter' | 'driver', fullName, email, phone,
- *   plates: string[],        // driver fleet — managed from the Driver console
- *   activePlate: string,     // the plate currently "on air"
- *   createdAt, updatedAt
- * }
- */
 
 import {
   createUserWithEmailAndPassword,
@@ -35,14 +21,6 @@ export { firebaseReady, isFirebaseConfigured };
 
 export const ROLES = ['commuter', 'driver', 'admin'];
 
-/**
- * THE ADMIN ACCOUNT(S) — keep in sync with the `isAdminEmail()` helper inside
- * /firestore.rules, which uses the same address to allow self-promotion.
- *
- * Whoever signs up (or logs in) with one of these emails gets the `admin` role:
- * they can log in through EITHER the Commuter or the Driver tab, switch between
- * both views, and manage every commuter/driver record.
- */
 export const ADMIN_EMAILS = ['joshrika@gmail.com'];
 
 export const isAdminEmail = (email) =>

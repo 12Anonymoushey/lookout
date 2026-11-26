@@ -2,7 +2,7 @@
   "name": "look-out",
   "version": "1.0.0",
   "private": true,
-  "description": "Look Out! - Real-Time PUV Transit Tracker for Iloilo City LPTRP Routes (monorepo root)",
+  "description": "This just the root of the lookout",
   "scripts": {
     "install-all": "npm --prefix backend install && npm --prefix frontend install",
     "dev": "concurrently -k -n SERVER,CLIENT -c cyan,magenta \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",

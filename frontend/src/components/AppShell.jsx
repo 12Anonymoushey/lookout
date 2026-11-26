@@ -1,8 +1,11 @@
-import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
+import { Children, Fragment, cloneElement, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, ChevronDown, ChevronRight, Info, Mail, MessageSquareText, Pencil, Phone, PanelLeftClose, PanelLeftOpen, UserRound, Users, X } from 'lucide-react';
 import logoImg from '../assets/lookoutLogo.png';
 import bannerImg from '../assets/lookoutBanner.png';
 import { addUtilityInboxItem } from '../services/utilityInboxService.js';
+
+const ScreenNavigationContext = createContext(null);
 
 function collectSections(children) {
   return Children.toArray(children).flatMap((child) => {
@@ -39,17 +42,17 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
   const selectedScreen = navigationItems.find((item) => item.id === selectedScreenId);
 
   const utilityButtons = (
-    <div className="border-t border-slate-200 p-3">
-      <button type="button" onClick={() => setUtilityModal('ask')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-700"><Users size={17} /> Ask admin</button>
-      <button type="button" onClick={() => setUtilityModal('feedback')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-700"><MessageSquareText size={17} /> Feedback</button>
-      <button type="button" onClick={() => setUtilityModal('about')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-700"><Info size={17} /> About the app</button>
+    <div className="border-t border-[#E9F3F8]/30 p-3">
+      <button type="button" onClick={() => setUtilityModal('ask')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold text-[#101B2F]"><Users size={17} /> Ask admin</button>
+      <button type="button" onClick={() => setUtilityModal('feedback')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold text-[#101B2F]"><MessageSquareText size={17} /> Feedback</button>
+      <button type="button" onClick={() => setUtilityModal('about')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold text-[#101B2F]"><Info size={17} /> About the app</button>
     </div>
   );
 
   const renderNavigation = () => (
     <nav aria-label={`${brand} sections`} className="space-y-1.5 p-3">
       {navigationItems.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+        <p className="rounded-xl border border-[#E9F3F8]/30 bg-[#101B2F]/30 px-3 py-4 text-sm text-[#DFE3E9]">
           No sections are available right now.
         </p>
       ) : navigationItems.map(({ id, title, icon: Icon }) => (
@@ -62,7 +65,7 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
             onCloseDrawer?.();
           }}
           aria-current={selectedScreenId === id ? 'page' : undefined}
-          className={`sidebar-nav__item lo-sidebar-tab group flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold  ${selectedScreenId === id ? 'bg-blue-600 text-white' : 'text-slate-900  '}`}
+          className={`sidebar-nav__item lo-sidebar-tab group flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-[#E9F3F8]/15 hover:text-[#F5F8FC] ${selectedScreenId === id ? 'bg-[#236BEB] text-[#F5F8FC]' : 'text-[#F5F8FC]'}`}
         >
           {Icon && <Icon size={19} className="sidebar-nav__icon shrink-0 " aria-hidden="true" />}
           <span className="truncate">{title}</span>
@@ -166,21 +169,23 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
   return (
     <div className="relative flex h-full min-h-0" onTouchStart={handleEdgeTouchStart} onTouchEnd={handleEdgeTouchEnd}>
       {/* Desktop sidebar */}
-      {!collapsed && (
-        <aside className="lo-desktop-sidebar hidden w-[min(24rem,34vw)] min-w-80 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-4">
+      <aside
+        aria-hidden={collapsed}
+        inert={collapsed}
+        className={`lo-glass-sidebar lo-desktop-sidebar z-[1050] hidden shrink-0 flex-col overflow-hidden lg:flex ${collapsed ? 'pointer-events-none w-0 min-w-0 -translate-x-5 opacity-0' : 'w-[min(24rem,34vw)] min-w-80 translate-x-0 opacity-100'}`}
+      >
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#E9F3F8]/30 px-4">
             <div className="flex min-w-0 items-center gap-2.5">
               <img src={logoImg} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
-              <span className="truncate text-xs font-bold uppercase tracking-[0.12em] text-slate-900">Look Out! <span className="font-medium text-slate-500">· {brand}</span></span>
+              <span className="truncate text-xs font-bold uppercase tracking-[0.12em] text-[#F5F8FC]">Look Out! <span className="font-medium text-[#DFE3E9]">· {brand}</span></span>
             </div>
-            <button type="button" onClick={onToggleCollapse} title="Hide panel" aria-label="Hide panel" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500   ">
+            <button type="button" onClick={onToggleCollapse} title="Hide panel" aria-label="Hide panel" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#DFE3E9]   ">
               <PanelLeftClose size={15} />
             </button>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto pb-2">{renderNavigation()}</div>
           {utilityButtons}
-        </aside>
-      )}
+      </aside>
 
       {/* Stage */}
       <div className="relative min-h-0 flex-1">
@@ -190,51 +195,50 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
             <PanelLeftOpen size={14} /> Panel
           </button>
         )}
-        {selectedScreen ? (
-          <section key={selectedScreen.id} className="lo-screen-enter absolute inset-0 z-[1200] flex min-h-0 flex-col overflow-hidden bg-slate-50">
-            <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 sm:px-5">
-              <button type="button" onClick={() => { setSelectedScreenId(null); setActiveDockItem(dockItems[0]?.id); }} aria-label="Back to previous screen" className="sidebar-back-button flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-900  ">
-                <ArrowLeft size={20} aria-hidden="true" />
-              </button>
-              <span className="text-sm font-bold text-slate-900">{selectedScreen.title}</span>
-            </header>
-            <div className={`min-h-0 flex-1 overflow-y-auto ${selectedScreen.title === 'My Details' || selectedScreen.title === 'Admin' ? 'p-0' : 'p-3 sm:p-5'}`}>
-              {selectedScreen.useCurrentScreen
-                ? children
-                : selectedScreen.content ?? cloneElement(selectedScreen.element, { screen: true })}
-            </div>
+        {(!selectedScreen || !selectedScreen.useCurrentScreen) && children}
+        <AnimatedTabPanel activeKey={selectedScreen?.id ?? null} variant="screen" className="lo-transition-stack--fill z-[1200]">
+          {selectedScreen && (
+          <section className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--lo-bg)]">
+            <ScreenNavigationContext.Provider value={{ onBack: () => { setSelectedScreenId(null); setActiveDockItem(dockItems[0]?.id); } }}>
+              <div className={`min-h-0 flex-1 overflow-y-auto ${selectedScreen.title === 'My Details' || selectedScreen.title === 'Admin' ? 'p-0' : 'p-3 sm:p-5'}`}>
+                {selectedScreen.useCurrentScreen
+                  ? children
+                  : selectedScreen.content ?? cloneElement(selectedScreen.element, { screen: true })}
+              </div>
+            </ScreenNavigationContext.Provider>
           </section>
-        ) : children}
+          )}
+        </AnimatedTabPanel>
       </div>
 
       {/* Mobile drawer */}
-      <div className={`lg:hidden ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
-        <button type="button" aria-label="Close panel" onClick={onCloseDrawer}
-          tabIndex={open ? 0 : -1}
-          className={`fixed inset-0 z-[1400] bg-slate-900/35 backdrop-blur-sm  duration-200 ${open ? 'opacity-100' : 'opacity-0'}`} />
-        <aside
-          ref={drawerRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${brand} options`}
-          inert={!open}
-          onTouchStart={handleDrawerTouchStart}
-          onTouchEnd={handleDrawerTouchEnd}
-          className={`fixed inset-y-0 left-0 z-[1500] flex w-[min(88vw,24rem)] flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-[280ms] ease-[cubic-bezier(0.2,0.75,0.25,1)] ${open ? 'translate-x-0' : '-translate-x-full'}`}
-        >
-            <header className="flex min-h-14 shrink-0 items-center justify-between border-b border-slate-200 px-4">
+      {createPortal(
+        <div className={`fixed inset-0 z-[1400] lg:hidden ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+          <button type="button" aria-label="Close panel" onClick={onCloseDrawer}
+            tabIndex={open ? 0 : -1}
+            className={`lo-mobile-drawer-backdrop fixed inset-0 z-[1040] bg-slate-900/35 backdrop-blur-sm ${open ? 'opacity-100' : 'opacity-0'}`} />
+          <aside
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${brand} options`}
+            inert={!open}
+            onTouchStart={handleDrawerTouchStart}
+            onTouchEnd={handleDrawerTouchEnd}
+            className={`lo-glass-sidebar lo-mobile-drawer fixed inset-y-0 left-0 z-[1050] flex w-[min(88vw,24rem)] flex-col shadow-2xl ${open ? 'translate-x-0' : '-translate-x-full'}`}
+          >
+            <header className="flex min-h-14 shrink-0 items-center justify-between border-b border-[#E9F3F8]/30 px-4">
               <div className="flex min-w-0 items-center gap-2.5">
                 <img src={logoImg} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
-                <span className="truncate text-sm font-bold uppercase tracking-[0.1em] text-slate-900">Look Out! <span className="font-medium text-slate-500">· {brand}</span></span>
+                <span className="truncate text-sm font-bold uppercase tracking-[0.1em] text-[#F5F8FC]">Look Out! <span className="font-medium text-[#DFE3E9]">· {brand}</span></span>
               </div>
-              <button type="button" onClick={onCloseDrawer} aria-label="Close panel" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500  ">
-                <X size={16} />
-              </button>
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto pb-2">{renderNavigation()}</div>
             {utilityButtons}
-        </aside>
-      </div>
+          </aside>
+        </div>,
+        document.body,
+      )}
 
       {dockItems.length > 0 && (
         <nav
@@ -297,9 +301,9 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
           )}
         </nav>
       )}
-      {utilityModal && (
-        <div className={`fixed inset-0 z-[5000] bg-slate-900/40 backdrop-blur-sm ${utilityModal === 'about' ? '' : 'flex items-center justify-center p-4'}`} role="dialog" aria-modal="true">
-          <div className={utilityModal === 'about' ? 'absolute inset-0 overflow-y-auto bg-white' : 'max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl'}>
+      <AnimatedPopup open={Boolean(utilityModal)}>
+        {utilityModal && (
+        <div role="dialog" aria-modal="true" className={utilityModal === 'about' ? 'absolute inset-0 overflow-y-auto bg-white' : 'lo-dialog-card max-h-[80vh] w-full max-w-md overflow-y-auto p-5'}>
             <div className="mb-4 flex items-start justify-between gap-3">
               <h2 className="text-lg font-extrabold text-slate-900">{utilityModal === 'about' ? 'About LookOut!' : utilityModal === 'ask' ? 'Ask an admin' : 'Send feedback'}</h2>
               {utilityModal !== 'about' && <button type="button" onClick={() => setUtilityModal('')} className="min-h-10 min-w-10 text-slate-500" aria-label="Close"><X size={18} /></button>}
@@ -342,13 +346,93 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
               </div>
             )}
           </div>
+        )}
+      </AnimatedPopup>
+    </div>
+  );
+}
+
+export function ModalPortal({ children }) {
+  return createPortal(children, document.body);
+}
+
+export function AnimatedTabPanel({ activeKey, children, className = '', variant = 'tab' }) {
+  const [outgoing, setOutgoing] = useState(null);
+  const hasChildren = children !== null && children !== undefined && children !== false;
+  const panelChildren = hasChildren ? children : null;
+  const previous = useRef({ key: activeKey, children: panelChildren });
+  const exitTimer = useRef(null);
+
+  useLayoutEffect(() => {
+    const previousPanel = previous.current;
+    if (previousPanel.key !== activeKey) {
+      window.clearTimeout(exitTimer.current);
+      if (previousPanel.key != null && previousPanel.children != null) {
+        setOutgoing(previousPanel);
+        exitTimer.current = window.setTimeout(
+          () => setOutgoing(null),
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 220,
+        );
+      } else {
+        setOutgoing(null);
+      }
+    }
+
+    previous.current = { key: activeKey, children: panelChildren };
+  }, [activeKey, panelChildren]);
+
+  useEffect(() => () => window.clearTimeout(exitTimer.current), []);
+
+  return (
+    <div className={`lo-transition-stack ${className}`}>
+      {panelChildren != null && (
+        <div key={`current-${activeKey}`} className={`lo-transition-panel lo-transition-${variant}-enter`}>
+          {panelChildren}
+        </div>
+      )}
+      {outgoing && (
+        <div key={`outgoing-${outgoing.key}`} className={`lo-transition-panel lo-transition-${variant}-exit`} aria-hidden="true" inert>
+          {outgoing.children}
         </div>
       )}
     </div>
   );
 }
 
-export function Section({ id, icon: Icon, title, badge, children, defaultOpen = true, tint = 'primary', screen = false }) {
+export function AnimatedPopup({ open, children }) {
+  const [present, setPresent] = useState(open);
+  const [phase, setPhase] = useState('enter');
+  const childrenRef = useRef(children);
+  const exitTimer = useRef(null);
+
+  if (open && children) childrenRef.current = children;
+
+  useEffect(() => {
+    window.clearTimeout(exitTimer.current);
+    if (open) {
+      setPresent(true);
+      setPhase('enter');
+    } else if (present) {
+      setPhase('exit');
+      exitTimer.current = window.setTimeout(() => {
+        setPresent(false);
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 220);
+    }
+
+    return () => window.clearTimeout(exitTimer.current);
+  }, [open, present]);
+
+  if (!present) return null;
+
+  return createPortal(
+    <div className={`lo-dialog-backdrop lo-dialog-${phase}`}>
+      {open ? children : childrenRef.current}
+    </div>,
+    document.body,
+  );
+}
+
+export function Section({ id, icon: Icon, title, badge, children, defaultOpen = true, tint = 'primary', screen = false, flat = false }) {
   const [show, setShow] = useState(defaultOpen);
   const tintClass = {
     primary: 'var(--lo-primary)',
@@ -359,21 +443,20 @@ export function Section({ id, icon: Icon, title, badge, children, defaultOpen = 
   if (screen) {
     const fullScreenProfile = title === 'My Details' || title === 'Admin';
     return (
-      <section className={fullScreenProfile ? 'min-h-full w-full' : 'mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white'}>
-        {!fullScreenProfile && (
-        <header className="flex min-h-14 items-center gap-3 border-b border-slate-200 px-4">
+      <section className={fullScreenProfile ? 'min-h-full w-full' : flat ? 'mx-auto w-full max-w-3xl' : 'mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white'}>
+        <header className={`flex min-h-14 items-center gap-3 ${fullScreenProfile ? 'border-b border-slate-200 px-3' : flat ? 'px-1' : 'border-b border-slate-200 px-4'}`}>
+          <ScreenBackButton />
           {Icon && <Icon size={19} className="shrink-0" style={{ color: tintClass }} aria-hidden="true" />}
           <h2 className="text-sm font-bold text-slate-900">{title}</h2>
         </header>
-        )}
-        <div className={fullScreenProfile ? '' : 'space-y-3 p-4'}>{children}</div>
+        <div className={fullScreenProfile ? '' : flat ? 'space-y-3 py-3' : 'space-y-3 p-4'}>{children}</div>
       </section>
     );
   }
 
   return (
-    <section id={id} className="scroll-m-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <button type="button" onClick={() => setShow((v) => !v)} aria-expanded={show} className="flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left  ">
+    <section id={id} className={flat ? 'scroll-m-6' : 'scroll-m-6 overflow-hidden rounded-2xl border border-slate-200 bg-white'}>
+      <button type="button" onClick={() => setShow((v) => !v)} aria-expanded={show} className={`flex min-h-12 w-full items-center justify-between gap-3 text-left ${flat ? 'px-1' : 'px-4'}`}>
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold tracking-wide text-slate-900">
           {Icon && <Icon size={13} className="shrink-0" style={{ color: tintClass }} />}
           <span className="truncate">{title}</span>
@@ -383,13 +466,24 @@ export function Section({ id, icon: Icon, title, badge, children, defaultOpen = 
           <ChevronDown size={16} className={show ? '' : '-rotate-90'} aria-hidden="true" />
         </span>
       </button>
-      {show && <div className="space-y-2.5 px-3.5 pb-3.5">{children}</div>}
+      {show && <div className={`space-y-2.5 ${flat ? 'py-3' : 'px-3.5 pb-3.5'}`}>{children}</div>}
     </section>
   );
 }
 
 Section.displayName = 'LookOutSection';
 Section.__lookOutSection = true;
+
+export function ScreenBackButton({ className = '' }) {
+  const screenNavigation = useContext(ScreenNavigationContext);
+  if (!screenNavigation) return null;
+
+  return (
+    <button type="button" onClick={screenNavigation.onBack} aria-label="Back to previous screen" className={`flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-green-card transition-colors hover:bg-blue-700 ${className}`}>
+      <ArrowLeft size={20} aria-hidden="true" />
+    </button>
+  );
+}
 
 export function InfoRow({ label, value, mono = false }) {
   return (
@@ -400,7 +494,7 @@ export function InfoRow({ label, value, mono = false }) {
   );
 }
 
-export function ProfileScreen({ profile, role, onEdit, stats = [], fallbackName = 'User' }) {
+export function ProfileScreen({ profile, role, onEdit, stats = [], fallbackName = 'User', showStatDivider = true }) {
   const displayName = profile?.fullName || fallbackName;
   const initials = displayName.trim().charAt(0).toUpperCase() || 'U';
   const details = [
@@ -410,17 +504,9 @@ export function ProfileScreen({ profile, role, onEdit, stats = [], fallbackName 
   ];
 
   return (
-    <div className="min-h-full bg-slate-50 pb-10">
+    <div className="min-h-full bg-[var(--lo-bg)] pb-10">
       <div className="relative overflow-hidden px-5 pb-16 pt-6 text-white sm:px-8 sm:pb-20 sm:pt-8" style={{ background: 'var(--lo-primary)' }}>
         <div className="mx-auto max-w-4xl">
-          <button
-            type="button"
-            onClick={onEdit}
-            aria-label="Edit details"
-            className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-full bg-white/15 text-white sm:right-7 sm:top-6"
-          >
-            <Pencil size={18} />
-          </button>
           <div className="flex flex-col items-center text-center">
             <div className="mb-3 h-24 w-24 overflow-hidden rounded-full border-4 border-white/90 bg-white shadow-lg sm:h-28 sm:w-28">
               {profile?.photoURL ? (
@@ -433,7 +519,7 @@ export function ProfileScreen({ profile, role, onEdit, stats = [], fallbackName 
             <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.22em] text-white/75">{role}</p>
           </div>
           {stats.length > 0 && (
-            <div className="mt-5 grid grid-cols-2 divide-x divide-white/25 text-center sm:mx-auto sm:max-w-xl">
+            <div className={`mt-5 grid grid-cols-2 text-center sm:mx-auto sm:max-w-xl ${showStatDivider ? 'divide-x divide-white/25' : ''}`}>
               {stats.map((stat) => (
                 <div key={stat.label}>
                   <p className="text-sm font-black sm:text-base">{stat.value}</p>
@@ -446,7 +532,7 @@ export function ProfileScreen({ profile, role, onEdit, stats = [], fallbackName 
       </div>
 
       <div className="mx-auto -mt-10 max-w-4xl px-3 sm:-mt-12 sm:px-6">
-        <div className="rounded-[1.75rem] border border-slate-100 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.12)] sm:px-7">
+        <div className="rounded-[1.75rem] border border-slate-100 bg-white px-5 py-5 shadow-green-card sm:px-7">
           <p className="mb-4 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">About me</p>
           <div className="grid gap-3 md:grid-cols-3">
             {details.map(({ label, value, icon: Icon }) => (

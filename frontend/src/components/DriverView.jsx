@@ -28,14 +28,14 @@ import {
 import { socket } from '../services/socket.js';
 import { bearingDeg, cardinal, haversineKm, pathLengthKm, pointAtDistance } from '../utils/geo.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import AppShell, { InfoRow, ProfileScreen, Section } from './AppShell.jsx';
+import AppShell, { AnimatedPopup, InfoRow, ProfileScreen, Section } from './AppShell.jsx';
 import PlateManager from './PlateManager.jsx';
 import DriverPokes from './DriverPokes.jsx';
 import PulseDot from './PulseDot.jsx';
 import EmergencyRadio from './EmergencyRadio.jsx';
 import WeatherTab from './WeatherTab.jsx';
 import VehicleMarker from './VehicleMarker.jsx';
-import { KebabMenu, SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
+import { ExpandableListCard, SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement, getDriverAnnouncements, getAllAnnouncements } from '../services/announcementService.js';
 
 const ILOILO_CENTER = [10.7202, 122.5621];
@@ -602,7 +602,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
         />
       </Section>
 
-      <Section id="driver-vehicles" icon={Bus} title="My Vehicles" tint="primary">
+      <Section id="driver-vehicles" icon={Bus} title="My Vehicles" tint="primary" flat>
         <PlateManager plates={plates} activePlate={activePlate} onSelect={setActivePlate} onChange={setPlates} disabled={isLive} />
       </Section>
 
@@ -653,13 +653,13 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
       </Section>
 
       {/* Tab 3: Trips */}
-      <Section id="driver-trips" icon={Clock} title="Trips" tint="primary" defaultOpen={false}>
+      <Section id="driver-trips" icon={Clock} title="Trips" tint="primary" defaultOpen={false} flat>
         <SearchSortBar search={tripSearch} onSearchChange={setTripSearch} sortField={tripSort.field} sortDir={tripSort.dir}
           onSortToggle={(field, dir) => setTripSort({ field, dir })} fields={['vehicleId', 'routeName', 'startedAt']} placeholder="Search trips…" />
         {filteredTrips.length === 0 ? (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>{trips.length === 0 ? 'No trips yet. Start a trip!' : 'No matches.'}</p>
         ) : (
-          <div className="max-h-72 space-y-1.5 overflow-y-auto">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.06)' }}>
               <label className="flex items-center gap-2 text-[9px] font-bold" style={{ color: 'var(--lo-text-secondary)' }}>
                 <input type="checkbox" checked={filteredTrips.length > 0 && filteredTrips.every((trip) => selectedTrips.includes(trip.id))}
@@ -667,65 +667,57 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
               </label>
               {selectedTrips.length > 0 && <button type="button" onClick={() => setBulkDeleteConfirm('trips')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedTrips.length}</button>}
             </div>
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1 px-2 text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>
-              <span>Trip</span><span>Duration</span><span>Revenue</span><span></span>
-            </div>
-            {filteredTrips.map((t) => (
-              <div key={t.id} className="rounded-xl border px-2.5 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <input type="checkbox" checked={selectedTrips.includes(t.id)}
-                      onChange={(event) => setSelectedTrips((current) => event.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id))} className="mr-2" />
-                    <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{t.vehicleId} · {t.routeName}</p>
-                    <p className="text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{t.startedAt} → {t.endedAt}</p>
-                <p className="mt-1 truncate text-[9px] font-semibold" style={{ color: 'var(--lo-primary)' }}>{t.routeDirection || t.routeName}</p>
-              </div>
-                  <KebabMenu items={[
+            {filteredTrips.map((t) => {
+              const date = tripEpoch(t);
+              return (
+                <ExpandableListCard
+                  key={t.id}
+                  leading={<input type="checkbox" checked={selectedTrips.includes(t.id)}
+                    onChange={(event) => setSelectedTrips((current) => event.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id))}
+                    aria-label={`Select trip ${t.vehicleId}`} />}
+                  summary={
+                    <>
+                      <p className="text-[10px] font-semibold text-slate-500">{date ? new Date(date).toLocaleDateString() : 'Unknown date'}</p>
+                      <p className="truncate text-xs font-bold text-slate-900">{t.vehicleId} · {t.routeName}</p>
+                    </>
+                  }
+                  details={
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                      <div><dt className="text-slate-500">Route</dt><dd className="font-semibold text-slate-900">{t.routeDirection || t.routeName}</dd></div>
+                      <div><dt className="text-slate-500">Duration</dt><dd className="font-semibold text-slate-900">{t.duration || fmtDuration(t.durationSeconds || 0)}</dd></div>
+                      <div><dt className="text-slate-500">Average speed</dt><dd className="font-semibold text-slate-900">{t.averageSpeedKmh || 0} km/h</dd></div>
+                      <div><dt className="text-slate-500">Status</dt><dd className="font-semibold text-slate-900">{t.status || (t.destinationReached ? 'Finished route' : 'Stopped early')}</dd></div>
+                      <div><dt className="text-slate-500">Started</dt><dd className="font-semibold text-slate-900">{t.startedAt}</dd></div>
+                      <div><dt className="text-slate-500">Ended</dt><dd className="font-semibold text-slate-900">{t.endedAt || '—'}</dd></div>
+                      <div><dt className="text-slate-500">Revenue</dt><dd className="font-semibold text-slate-900">₱{t.revenue || 0}</dd></div>
+                      <div><dt className="text-slate-500">Income</dt><dd className="font-semibold text-slate-900">₱{t.income || 0}</dd></div>
+                      <div><dt className="text-slate-500">Gas</dt><dd className="font-semibold text-slate-900">₱{t.gas || 0}</dd></div>
+                      <div><dt className="text-slate-500">Others</dt><dd className="font-semibold text-slate-900">₱{t.others || 0}</dd></div>
+                      {!t.destinationReached && t.stoppedAt && <div className="col-span-2"><dt className="text-slate-500">Stopped at</dt><dd className="font-semibold text-slate-900">{t.stoppedAt}</dd></div>}
+                    </dl>
+                  }
+                  footer={deleteTripId === t.id && (
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-red-300/60 bg-red-50 px-2.5 py-2">
+                      <p className="text-[10px] font-semibold text-red-700">Delete this trip?</p>
+                      <div className="flex shrink-0 gap-1.5">
+                        <button type="button" onClick={() => setDeleteTripId(null)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold text-slate-700">Cancel</button>
+                        <button type="button" onClick={() => removeTrip(t.id)} className="rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white">Delete</button>
+                      </div>
+                    </div>
+                  )}
+                  actions={[
                     { icon: Banknote, label: 'Edit finances', onClick: () => { setEditingTrip(t); setTripDraft({ revenue: String(t.revenue || ''), income: String(t.income || ''), gas: String(t.gas || ''), others: String(t.others || '') }); } },
                     { icon: Trash2, label: 'Delete', danger: true, onClick: () => setDeleteTripId(t.id) },
-                  ]} />
-                </div>
-                {deleteTripId === t.id && (
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-red-300/60 bg-red-50 px-2.5 py-2">
-                    <p className="text-[10px] font-semibold text-red-700">Delete this trip?</p>
-                    <div className="flex shrink-0 gap-1.5">
-                      <button type="button" onClick={() => setDeleteTripId(null)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold text-slate-700">Cancel</button>
-                      <button type="button" onClick={() => removeTrip(t.id)} className="rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white">Delete</button>
-                    </div>
-                  </div>
-                )}
-                <div className="mt-2 grid grid-cols-3 gap-1">
-                  {[
-                    { label: 'Duration', val: t.duration || fmtDuration(t.durationSeconds || 0) },
-                    { label: 'Average', val: `${t.averageSpeedKmh || 0} km/h` },
-                    { label: 'Status', val: t.status || (t.destinationReached ? 'Finished route' : 'Stopped early') },
-                  ].map((detail) => (
-                    <div key={detail.label} className="rounded-lg border px-1.5 py-1.5 text-center" style={{ borderColor: 'var(--lo-card-border)' }}>
-                      <p className="truncate font-bold text-[10px]" style={{ color: 'var(--lo-text)' }}>{detail.val}</p>
-                      <p className="text-[8px] uppercase" style={{ color: 'var(--lo-text-secondary)' }}>{detail.label}</p>
-                    </div>
-                  ))}
-                </div>
-                {!t.destinationReached && t.stoppedAt && (
-                  <p className="mt-1.5 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>Stopped at: <span className="font-semibold" style={{ color: 'var(--lo-text)' }}>{t.stoppedAt}</span></p>
-                )}
-                <div className="mt-1.5 grid grid-cols-4 gap-1">
-                  {[{ label: 'Revenue', val: `₱${t.revenue || 0}` }, { label: 'Income', val: `₱${t.income || 0}` }, { label: 'Gas', val: `₱${t.gas || 0}` }, { label: 'Others', val: `₱${t.others || 0}` }].map((f) => (
-                    <div key={f.label} className="rounded-lg px-1.5 py-1 text-center" style={{ background: 'rgba(37,99,235,0.05)' }}>
-                      <p className="font-mono text-[10px] font-bold" style={{ color: 'var(--lo-text)' }}>{f.val}</p>
-                      <p className="text-[8px] uppercase" style={{ color: 'var(--lo-text-secondary)' }}>{f.label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                  ]}
+                />
+              );
+            })}
           </div>
         )}
       </Section>
 
-      {/* Tab 4: Stats */}
-      <Section icon={Star} title="Stats" tint="primary" defaultOpen={false}>
+      {/* Tab 4: Analytics */}
+      <Section icon={Star} title="Analytics" tint="primary" defaultOpen={false}>
         {tripStats ? (
           <div className="space-y-1.5">
             <InfoRow label="Total trips" value={tripStats.total} />
@@ -744,7 +736,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
       </Section>
 
       {/* Announcements */}
-      <Section icon={Megaphone} title="Announcements" tint="primary" defaultOpen={false}>
+      <Section icon={Megaphone} title="Announcements" tint="primary" defaultOpen={false} flat>
         <div className="space-y-3">
           <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--lo-text-secondary)' }}>Make announcement</p>
@@ -786,9 +778,9 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
 
             {announcementTab === 'mine' && (
               myAnnouncements.length === 0 ? (
-                <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
+                <p className="lo-tab-content py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements yet.</p>
               ) : (
-                <div className="max-h-64 space-y-1.5 overflow-y-auto lo-tab-content">
+                <div className="space-y-1.5 lo-tab-content">
                   <div className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: 'rgba(37,99,235,0.06)' }}>
                     <label className="flex items-center gap-2 text-[9px] font-bold" style={{ color: 'var(--lo-text-secondary)' }}>
                       <input type="checkbox" checked={myAnnouncements.length > 0 && myAnnouncements.every((item) => selectedAnnouncements.includes(item.id))}
@@ -797,21 +789,14 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
                     {selectedAnnouncements.length > 0 && <button type="button" onClick={() => setBulkDeleteConfirm('announcements')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedAnnouncements.length}</button>}
                   </div>
                   {myAnnouncements.map((a) => (
-                    <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <input type="checkbox" checked={selectedAnnouncements.includes(a.id)}
-                            onChange={(event) => setSelectedAnnouncements((current) => event.target.checked ? [...current, a.id] : current.filter((id) => id !== a.id))} className="mr-2" />
-                          <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
-                          <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
-                          <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.plate} · {a.createdAt}</p>
-                        </div>
-                        <KebabMenu items={[
-                          { icon: Pencil, label: 'Edit', onClick: () => { setEditingAnnounce(a); setAnnounceDraft({ title: a.title, message: a.message }); } },
-                          { icon: Trash2, label: 'Delete', danger: true, onClick: () => setDeleteAnnouncementId(a.id) },
-                        ]} />
-                      </div>
-                      {deleteAnnouncementId === a.id && (
+                    <ExpandableListCard
+                      key={a.id}
+                      leading={<input type="checkbox" checked={selectedAnnouncements.includes(a.id)}
+                        onChange={(event) => setSelectedAnnouncements((current) => event.target.checked ? [...current, a.id] : current.filter((id) => id !== a.id))}
+                        aria-label={`Select announcement ${a.title}`} />}
+                      summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(a.createdAt).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{a.title}</p></>}
+                      details={<><p className="text-[10px] leading-relaxed text-slate-700">{a.message}</p><p className="mt-1 text-[9px] text-slate-500">{a.plate} · {a.createdAt}</p></>}
+                      footer={deleteAnnouncementId === a.id && (
                         <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5">
                           <span className="text-[9px] font-semibold text-red-700">Delete this announcement?</span>
                           <div className="flex gap-1">
@@ -820,7 +805,11 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
                           </div>
                         </div>
                       )}
-                    </div>
+                      actions={[
+                          { icon: Pencil, label: 'Edit', onClick: () => { setEditingAnnounce(a); setAnnounceDraft({ title: a.title, message: a.message }); } },
+                          { icon: Trash2, label: 'Delete', danger: true, onClick: () => setDeleteAnnouncementId(a.id) },
+                      ]}
+                    />
                   ))}
                 </div>
               )
@@ -830,13 +819,13 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
               allAnnouncements.length === 0 ? (
                 <p className="py-2 text-center text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>No announcements.</p>
               ) : (
-                <div className="max-h-64 space-y-1.5 overflow-y-auto lo-tab-content">
+                <div className="space-y-1.5 lo-tab-content">
                   {allAnnouncements.map((a) => (
-                    <div key={a.id} className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--lo-card-border)', background: 'var(--lo-card)' }}>
-                      <p className="truncate text-[11px] font-bold" style={{ color: 'var(--lo-text)' }}>{a.title}</p>
-                      <p className="mt-0.5 text-[10px] leading-relaxed" style={{ color: 'var(--lo-text-secondary)' }}>{a.message}</p>
-                      <p className="mt-1 text-[9px]" style={{ color: 'var(--lo-text-secondary)' }}>{a.driverName} · {a.plate} · {a.createdAt}</p>
-                    </div>
+                    <ExpandableListCard
+                      key={a.id}
+                      summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(a.createdAt).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{a.title}</p></>}
+                      details={<><p className="text-[10px] leading-relaxed text-slate-700">{a.message}</p><p className="mt-1 text-[9px] text-slate-500">{a.driverName} · {a.plate} · {a.createdAt}</p></>}
+                    />
                   ))}
                 </div>
               )
@@ -844,7 +833,7 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
           </div>
         </div>
       </Section>
-      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false}>
+      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false} flat>
         <EmergencyRadio logs={radioLogs} playingId={playingRadioId} />
       </Section>
       <Section icon={CloudRain} title="Weather & Analytics" tint="primary" defaultOpen={false}>
@@ -932,21 +921,23 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
       </div>
 
       <ConfirmToast message={toast} onClose={() => setToast('')} />
-      {bulkDeleteConfirm && (
-        <div className="fixed inset-x-4 bottom-5 z-[2200] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
-          <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
-          <p className="mt-1 text-[10px] text-slate-500">Delete the selected {bulkDeleteConfirm}?</p>
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={() => setBulkDeleteConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">Cancel</button>
-            <button type="button" onClick={confirmBulkDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
-          </div>
-        </div>
-      )}
+      <AnimatedPopup open={Boolean(bulkDeleteConfirm)}>
+        {bulkDeleteConfirm && (
+            <div role="dialog" aria-modal="true" aria-label="Confirm deletion" className="lo-dialog-card w-full max-w-sm p-4">
+              <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
+              <p className="mt-1 text-[10px] text-slate-500">Delete the selected {bulkDeleteConfirm}?</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={() => setBulkDeleteConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">Cancel</button>
+                <button type="button" onClick={confirmBulkDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
+              </div>
+            </div>
+        )}
+      </AnimatedPopup>
 
       {/* ---- Edit My Details modal ---- */}
-      {editingDetails && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
-          <div role="dialog" aria-modal="true" aria-label="Edit details" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
+      <AnimatedPopup open={Boolean(editingDetails)}>
+        {editingDetails && (
+          <div role="dialog" aria-modal="true" aria-label="Edit details" className="lo-dialog-card max-h-[90dvh] w-full max-w-sm overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:mx-4 sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Details</h3>
               <button type="button" onClick={() => setEditingDetails(false)} aria-label="Close edit details dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
@@ -970,13 +961,13 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
               <button type="button" onClick={saveDetails} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
 
       {/* ---- Edit Trip Finances modal ---- */}
-      {editingTrip && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
-          <div role="dialog" aria-modal="true" aria-label="Edit trip finances" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
+      <AnimatedPopup open={Boolean(editingTrip)}>
+        {editingTrip && (
+          <div role="dialog" aria-modal="true" aria-label="Edit trip finances" className="lo-dialog-card max-h-[90dvh] w-full max-w-sm overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:mx-4 sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Trip Finances</h3>
               <button type="button" onClick={() => setEditingTrip(null)} aria-label="Close trip finances dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
@@ -1001,13 +992,13 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
               <button type="button" onClick={updateTripFinancials} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
 
       {/* ---- Edit Announcement modal ---- */}
-      {editingAnnounce && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
-          <div role="dialog" aria-modal="true" aria-label="Edit announcement" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-sm sm:rounded-2xl sm:pb-0">
+      <AnimatedPopup open={Boolean(editingAnnounce)}>
+        {editingAnnounce && (
+          <div role="dialog" aria-modal="true" aria-label="Edit announcement" className="lo-dialog-card max-h-[90dvh] w-full max-w-sm overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:mx-4 sm:pb-0">
             <header className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--lo-panel-border)' }}>
               <h3 className="text-sm font-bold" style={{ color: 'var(--lo-text)' }}>Edit Announcement</h3>
               <button type="button" onClick={() => setEditingAnnounce(null)} aria-label="Close announcement dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 "><X size={20} /></button>
@@ -1031,8 +1022,8 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
               <button type="button" onClick={saveEditedAnnounce} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white  ">Save</button>
             </footer>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
     </AppShell>
   );
 }

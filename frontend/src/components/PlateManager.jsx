@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, CreditCard, Plus, Star, Trash2 } from 'lucide-react';
 import { isValidPlate, normalizePlate } from '../services/authService.js';
+import { ExpandableListCard } from './KebabMenu.jsx';
 
 export default function PlateManager({ plates = [], activePlate, onSelect, onChange, disabled }) {
   const [draft, setDraft] = useState('');
@@ -23,7 +24,7 @@ export default function PlateManager({ plates = [], activePlate, onSelect, onCha
   };
 
   return (
-    <section className="space-y-2.5 rounded-2xl border border-slate-200 bg-white p-3.5">
+    <section className="space-y-2.5">
       <header className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-900">
           <CreditCard size={13} style={{ color: 'var(--lo-primary)' }} /> Plate Numbers
@@ -38,43 +39,23 @@ export default function PlateManager({ plates = [], activePlate, onSelect, onCha
           Add your plate number below.
         </p>
       ) : (
-        <ul className="space-y-1.5">
+        <div className="space-y-1.5">
           {plates.map((plate) => {
             const active = plate === activePlate;
             return (
-              <li
+              <ExpandableListCard
                 key={plate}
-                className={`flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 ${
-                  active
-                    ? 'border-[var(--lo-primary)]/60 bg-slate-50'
-                    : 'border-slate-200 bg-white'
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => onSelect(plate)}
-                  disabled={disabled}
-                  className="flex min-w-0 items-center gap-2 text-left disabled:opacity-60"
-                >
-                  {active ? <Check size={13} className="shrink-0 text-blue-600" /> : <Star size={13} className="shrink-0 text-slate-500" />}
-                  <span className="truncate font-mono text-xs font-bold tracking-widest text-slate-900">{plate}</span>
-                </button>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  {active ? (
-                    <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-900">on air</span>
-                  ) : (
-                    <button type="button" onClick={() => onSelect(plate)} disabled={disabled} className="rounded-lg border border-slate-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-900    disabled:opacity-50">
-                      use
-                    </button>
-                  )}
-                  <button type="button" onClick={() => remove(plate)} disabled={disabled} aria-label={`Remove ${plate}`} className="rounded-lg p-1 text-slate-500    disabled:opacity-40">
-                    <Trash2 size={13} />
-                  </button>
-                </span>
-              </li>
+                leading={active ? <Check size={14} className="mt-0.5 shrink-0 text-blue-600" /> : <Star size={14} className="mt-0.5 shrink-0 text-slate-500" />}
+                summary={<><p className="truncate font-mono text-xs font-bold tracking-widest text-slate-900">{plate}</p><p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">{active ? 'On air' : 'Saved vehicle'}</p></>}
+                details={<p className="text-[10px] text-slate-700">{active ? 'This vehicle is currently selected for your trips.' : 'Select this vehicle before starting a trip.'}</p>}
+                actions={disabled ? [] : [
+                  ...(!active ? [{ icon: Check, label: 'Use vehicle', onClick: () => onSelect(plate) }] : []),
+                  { icon: Trash2, label: 'Remove vehicle', danger: true, onClick: () => remove(plate) },
+                ]}
+              />
             );
           })}
-        </ul>
+        </div>
       )}
 
       <div className="flex gap-2">

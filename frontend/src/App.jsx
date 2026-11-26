@@ -10,7 +10,7 @@ import { useAuth } from './context/AuthContext.jsx';
 import EmergencyRadio from './components/EmergencyRadio.jsx';
 import { auth, firebaseReady } from './services/firebase.js';
 
-export default function App() {
+export default function App() { 
   const {
     ready,
     profile,
@@ -157,7 +157,7 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-slate-50 text-slate-900">
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-[var(--lo-bg)] text-slate-900">
         <Loader2 size={28} className="animate-spin text-blue-600" />
         <p className="text-sm font-semibold">Loading…</p>
       </div>
@@ -178,7 +178,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50 text-slate-900">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[var(--lo-bg)] text-slate-900">
       <EmergencyRadio dockOnly logs={radioLogs} playingId={playingRadioId} />
       <Navbar view={view} onViewChange={switchView} connected={connected} profile={profile} role={role} isAdmin={isAdmin} isDemo={isDemo} onSignOut={signOut} onOpenSidebar={openDrawer} />
 
@@ -204,14 +204,16 @@ export default function App() {
           </button>
         </div>
       )}
-      <main className="relative min-h-0 flex-1">
-        {view === 'admin' ? (
-          <AdminView vehicles={vehicles} onViewChange={switchView} {...shellProps} />
-        ) : view === 'driver' ? (
-          <DriverView routes={routes} connected={connected} {...shellProps} />
-        ) : (
-          <CommuterView routes={routes} vehicles={vehicles} hasFetchError={Boolean(routesError)} {...shellProps} />
-        )}
+      <main className="relative min-h-0 flex-1 overflow-hidden">
+        <div key={view} className="lo-role-screen-enter h-full min-h-0">
+          {view === 'admin' ? (
+            <AdminView vehicles={vehicles} onViewChange={switchView} {...shellProps} />
+          ) : view === 'driver' ? (
+            <DriverView routes={routes} connected={connected} {...shellProps} />
+          ) : (
+            <CommuterView routes={routes} vehicles={vehicles} hasFetchError={Boolean(routesError)} {...shellProps} />
+          )}
+        </div>
       </main>
     </div>
   );

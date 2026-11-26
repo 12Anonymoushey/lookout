@@ -16,13 +16,13 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import AppShell, { InfoRow, ProfileScreen, Section } from './AppShell.jsx';
+import AppShell, { AnimatedPopup, InfoRow, ProfileScreen, ScreenBackButton, Section } from './AppShell.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { adminDeletePoke, adminDeleteUser, adminUpdateUser, watchAllPokes, watchAllUsers } from '../services/adminService.js';
 import { firebaseReady, normalizePhone, normalizePlate } from '../services/authService.js';
 import { auth } from '../services/firebase.js';
 import { timeAgo } from '../services/pokeService.js';
-import { SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
+import { ExpandableListCard, SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAnnouncements } from '../services/announcementService.js';
 import { addAdminLog, clearAdminLogs, getAdminLogs } from '../services/adminActivityService.js';
 import EmergencyRadio from './EmergencyRadio.jsx';
@@ -363,10 +363,10 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
         <FleetAnalytics rides={rides} trips={trips} />
       </Section>
 
-      <Section icon={Radio} title="Announcements" tint="primary" defaultOpen={false}>
+      <Section icon={Radio} title="Announcements" tint="primary" defaultOpen={false} flat>
         <div className="space-y-3">
           {announcementTab === 'make' && (
-            <div className="space-y-2">
+            <div className="space-y-2 lo-tab-content">
               <input value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} placeholder="Announcement title"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900" />
               <textarea value={announcementMessage} onChange={(e) => setAnnouncementMessage(e.target.value)} placeholder="Announcement details" rows={3}
@@ -375,7 +375,7 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
             </div>
           )}
           {announcementTab === 'mine' && (
-            <div className="max-h-72 space-y-1.5 overflow-y-auto">
+            <div className="space-y-1.5 lo-tab-content">
               <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5">
                 <label className="flex items-center gap-2 text-[9px] font-bold text-slate-500">
                   <input type="checkbox" checked={announcements.filter((item) => item.driverUid === profile?.uid).length > 0 && announcements.filter((item) => item.driverUid === profile?.uid).every((item) => selectedAnnouncements.includes(item.id))}
@@ -384,18 +384,14 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
                 {selectedAnnouncements.length > 0 && <button type="button" onClick={() => setBulkConfirm('announcements')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedAnnouncements.length}</button>}
               </div>
               {announcements.filter((item) => item.driverUid === profile?.uid).map((item) => (
-                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <input type="checkbox" checked={selectedAnnouncements.includes(item.id)}
-                        onChange={(event) => setSelectedAnnouncements((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} className="mr-2" />
-                      <p className="truncate text-[11px] font-bold text-slate-900">{item.title}</p>
-                      <p className="text-[10px] text-slate-500">{item.message}</p>
-                    </div>
-                    <button type="button" onClick={() => { setEditingAnnouncement(item); setAnnouncementDraft({ title: item.title, message: item.message }); }} className="text-slate-500" aria-label="Edit announcement"><Pencil size={14} /></button>
-                  </div>
-                  <button type="button" onClick={() => setConfirmAnnouncementId(confirmAnnouncementId === item.id ? '' : item.id)} className="mt-2 flex items-center gap-1 text-[9px] font-bold text-red-500"><Trash2 size={11} /> Delete</button>
-                  {confirmAnnouncementId === item.id && (
+                <ExpandableListCard
+                  key={item.id}
+                  leading={<input type="checkbox" checked={selectedAnnouncements.includes(item.id)}
+                    onChange={(event) => setSelectedAnnouncements((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                    aria-label={`Select announcement ${item.title}`} />}
+                  summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{item.title}</p></>}
+                  details={<><p className="text-[10px] leading-relaxed text-slate-700">{item.message}</p><p className="mt-1 text-[9px] text-slate-500">{item.driverName} · {item.plate}</p></>}
+                  footer={confirmAnnouncementId === item.id && (
                     <div className="mt-2 flex items-center justify-between rounded-lg bg-red-50 px-2 py-1.5">
                       <span className="text-[9px] font-semibold text-red-700">Delete this announcement?</span>
                       <div className="flex gap-1">
@@ -404,7 +400,11 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
                       </div>
                     </div>
                   )}
-                </div>
+                  actions={[
+                    { icon: Pencil, label: 'Edit', onClick: () => { setEditingAnnouncement(item); setAnnouncementDraft({ title: item.title, message: item.message }); } },
+                    { icon: Trash2, label: 'Delete', danger: true, onClick: () => setConfirmAnnouncementId(confirmAnnouncementId === item.id ? '' : item.id) },
+                  ]}
+                />
               ))}
               {!announcements.some((item) => item.driverUid === profile?.uid) && <p className="py-2 text-center text-[11px] text-slate-500">No announcements yet.</p>}
             </div>
@@ -415,86 +415,81 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
             ))}
           </div>
           {announcementTab === 'all' && (
-            <div className="max-h-72 space-y-1.5 overflow-y-auto">
+            <div className="space-y-1.5 lo-tab-content">
               {announcements.map((item) => (
-                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <p className="truncate text-[11px] font-bold text-slate-900">{item.title}</p>
-                  <p className="text-[10px] text-slate-500">{item.message}</p>
-                  <p className="mt-1 text-[9px] text-slate-400">{item.driverName} · {item.plate}</p>
-                </div>
+                <ExpandableListCard
+                  key={item.id}
+                  summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{item.title}</p></>}
+                  details={<><p className="text-[10px] leading-relaxed text-slate-700">{item.message}</p><p className="mt-1 text-[9px] text-slate-500">{item.driverName} · {item.plate}</p></>}
+                />
               ))}
             </div>
           )}
         </div>
       </Section>
 
-      <Section icon={Hand} title="Recent Pokes" defaultOpen={false} tint="primary">
+      <Section icon={Hand} title="Recent Pokes" defaultOpen={false} tint="primary" flat>
         {pokes.length === 0 ? (
           <p className="text-[11px] text-slate-500">No pokes yet.</p>
         ) : (
-          <ul className="max-h-64 space-y-1.5 overflow-y-auto">
-            <li className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5">
               <label className="flex items-center gap-2 text-[9px] font-bold text-slate-500">
                 <input type="checkbox" checked={pokes.every((poke) => selectedPokes.includes(poke.id))}
                   onChange={(event) => setSelectedPokes(event.target.checked ? pokes.map((poke) => poke.id) : [])} /> Select all
               </label>
               {selectedPokes.length > 0 && <button type="button" onClick={() => setBulkConfirm('pokes')} className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[9px] font-bold text-white"><Trash2 size={11} /> Delete {selectedPokes.length}</button>}
-            </li>
+            </div>
             {pokes.slice(0, 25).map((poke) => (
-              <li key={poke.id} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2">
-                <p className="flex items-center justify-between gap-2 text-[11px] font-bold text-slate-900">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <input type="checkbox" checked={selectedPokes.includes(poke.id)}
-                      onChange={(event) => setSelectedPokes((current) => event.target.checked ? [...current, poke.id] : current.filter((id) => id !== poke.id))} />
-                    <span className="truncate font-mono">{poke.toPlate}</span>
-                  </span>
-                  <span className="shrink-0 text-[10px] font-normal text-slate-500">{timeAgo(poke.createdAt)}</span>
-                </p>
-                <p className="truncate text-[10px] text-slate-500">{poke.fromName}</p>
-              </li>
+              <ExpandableListCard
+                key={poke.id}
+                leading={<input type="checkbox" checked={selectedPokes.includes(poke.id)}
+                  onChange={(event) => setSelectedPokes((current) => event.target.checked ? [...current, poke.id] : current.filter((id) => id !== poke.id))}
+                  aria-label={`Select poke for ${poke.toPlate}`} />}
+                summary={<><p className="text-[10px] font-semibold text-slate-500">{timeAgo(poke.createdAt)}</p><p className="truncate font-mono text-xs font-bold text-slate-900">{poke.toPlate}</p></>}
+                details={<dl className="space-y-1 text-[10px]"><div className="flex justify-between gap-2"><dt className="text-slate-500">From</dt><dd className="text-right text-slate-900">{poke.fromName}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Sent</dt><dd className="text-right text-slate-900">{new Date(poke.createdAt).toLocaleString()}</dd></div></dl>}
+              />
             ))}
-          </ul>
+          </div>
         )}
       </Section>
 
-      <Section icon={ClipboardList} title="Admin Logs" defaultOpen={false} tint="primary">
+      <Section icon={ClipboardList} title="Admin Logs" defaultOpen={false} tint="primary" flat>
         {adminLogs.length === 0 ? (
           <p className="text-[11px] text-slate-500">No admin actions recorded yet.</p>
         ) : (
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
+          <div className="space-y-1.5">
             {adminLogs.map((log) => (
-              <div key={log.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                <p className="text-[11px] font-bold text-slate-900">{log.action}</p>
-                {log.details && <p className="text-[10px] text-slate-500">{log.details}</p>}
-                <p className="mt-1 text-[9px] text-slate-400">{new Date(log.createdAt).toLocaleString()}</p>
-              </div>
+              <ExpandableListCard
+                key={log.id}
+                summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(log.createdAt).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{log.action}</p></>}
+                details={<>{log.details && <p className="text-[10px] text-slate-700">{log.details}</p>}<p className="mt-1 text-[9px] text-slate-500">{new Date(log.createdAt).toLocaleString()}</p></>}
+              />
             ))}
             <button type="button" onClick={() => { clearAdminLogs(); setAdminLogs([]); setToast('Admin logs cleared'); }} className="w-full rounded-xl border border-slate-200 py-2 text-[10px] font-bold text-slate-600">Clear logs</button>
           </div>
         )}
       </Section>
-      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false}>
+      <Section icon={Radio} title="Emergency Radio" tint="danger" defaultOpen={false} flat>
         <EmergencyRadio logs={radioLogs} playingId={playingRadioId} />
       </Section>
       <Section icon={CloudRain} title="Weather & Analytics" tint="primary" defaultOpen={false}>
         <WeatherTab />
       </Section>
-      <Section id="admin-inbox" icon={Inbox} title="Ask Admin & Feedback" defaultOpen={false} tint="primary">
+      <Section id="admin-inbox" icon={Inbox} title="Ask Admin & Feedback" defaultOpen={false} tint="primary" flat>
         {utilityInbox.length === 0 ? (
           <p className="rounded-xl bg-slate-50 px-3 py-6 text-center text-xs text-slate-500">No questions or feedback yet.</p>
         ) : (
-          <div className="max-h-[28rem] space-y-2 overflow-y-auto">
+          <div className="space-y-2">
             {utilityInbox.map((item) => (
-              <article key={item.id} onClick={() => setUtilityInbox(markUtilityInboxRead(item.id))} className={`cursor-pointer rounded-xl border px-3 py-3 ${item.read ? 'border-slate-200 bg-white' : 'border-blue-200 bg-blue-50'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">{item.type === 'admin-question' ? 'Admin question' : 'Feedback'}</p>
-                    <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-900">{item.message}</p>
-                    <p className="mt-1 text-[10px] text-slate-500">{item.sender} · {new Date(item.createdAt).toLocaleString()}</p>
-                  </div>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); setUtilityInbox(deleteUtilityInboxItem(item.id)); }} className="flex min-h-10 min-w-10 items-center justify-center text-red-500" aria-label="Delete inbox item"><Trash2 size={15} /></button>
-                </div>
-              </article>
+            <ExpandableListCard
+              key={item.id}
+              className={item.read ? '' : 'border-blue-200'}
+              summary={<><p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">{item.type === 'admin-question' ? 'Admin question' : 'Feedback'}</p><p className="truncate text-xs font-semibold text-slate-900">{item.sender} · {new Date(item.createdAt).toLocaleDateString()}</p></>}
+              details={<><p className="text-[10px] leading-relaxed text-slate-700">{item.message}</p><p className="mt-1 text-[9px] text-slate-500">{new Date(item.createdAt).toLocaleString()}</p></>}
+              onToggleExpand={() => setUtilityInbox(markUtilityInboxRead(item.id))}
+              actions={[{ icon: Trash2, label: 'Delete', danger: true, onClick: () => setUtilityInbox(deleteUtilityInboxItem(item.id)) }]}
+            />
             ))}
           </div>
         )}
@@ -513,7 +508,8 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
     <AppShell brand="Admin" panel={panel} dockItems={dockItems} utilityProfile={utilityProfile} extraNavigationItems={[{ id: 'admin-accounts', title: 'Accounts', icon: Users, useCurrentScreen: true }]} open={drawerOpen} onOpenDrawer={onOpenDrawer} onCloseDrawer={onCloseDrawer} collapsed={collapsed} onToggleCollapse={onToggleCollapse}>
       <div id="admin-accounts" className="h-full scroll-m-6 overflow-y-auto bg-[var(--lo-bg)] p-3 sm:p-5">
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="flex min-w-0 items-center gap-2">
+            <ScreenBackButton />
             <h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight">
               <ShieldCheck size={20} style={{ color: 'var(--lo-primary)' }} /> Accounts
             </h2>
@@ -569,26 +565,25 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
             </div>
           )}
           {filtered.map((user) => (
-            <div key={user.uid} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <button type="button" onClick={() => setSelectedUser(user)}
-                className="flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left">
-                <span className="flex min-w-0 items-center gap-2">
-                  <input type="checkbox" checked={selectedUsers.includes(user.uid)} disabled={user.uid === profile?.uid}
-                    onClick={(event) => event.stopPropagation()}
-                    onChange={(event) => setSelectedUsers((current) => event.target.checked ? [...current, user.uid] : current.filter((uid) => uid !== user.uid))} />
-                  <span className="truncate text-sm font-bold text-slate-900">{user.fullName || 'User'}</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${ROLE_STYLES[user.role] || ROLE_STYLES.commuter}`}>{user.role}</span>
-                </span>
-              </button>
-            </div>
+            <ExpandableListCard
+              key={user.uid}
+              leading={<input type="checkbox" checked={selectedUsers.includes(user.uid)} disabled={user.uid === profile?.uid}
+                onChange={(event) => setSelectedUsers((current) => event.target.checked ? [...current, user.uid] : current.filter((uid) => uid !== user.uid))}
+                aria-label={`Select account ${user.fullName || user.email}`} />}
+              summary={<><p className="truncate text-xs font-bold text-slate-900">{user.fullName || 'User'}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${ROLE_STYLES[user.role] || ROLE_STYLES.commuter}`}>{user.role}</span></>}
+              details={<dl className="space-y-1 text-[10px]"><div className="flex justify-between gap-2"><dt className="text-slate-500">Email</dt><dd className="truncate text-right text-slate-900">{user.email || '—'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Phone</dt><dd className="text-right text-slate-900">{user.phone || '—'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Active plate</dt><dd className="text-right text-slate-900">{user.activePlate || '—'}</dd></div></dl>}
+              actions={[
+                { icon: Users, label: 'Open account', onClick: () => setSelectedUser(user) },
+                { icon: Pencil, label: 'Edit details', onClick: () => openEditor(user) },
+                ...(user.uid !== profile?.uid ? [{ icon: Trash2, label: 'Delete account', danger: true, onClick: () => { setSelectedUser(user); setConfirmUid(user.uid); } }] : []),
+              ]}
+            />
           ))}
         </div>
       </div>
 
       {selectedUser && (
-        <div className="fixed inset-0 z-[1900] overflow-y-auto bg-[var(--lo-bg)] lo-tab-content">
+        <div className="fixed inset-0 z-[1900] overflow-y-auto bg-[var(--lo-bg)]">
           <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
             <div className="min-w-0">
               <p className="truncate text-lg font-extrabold text-slate-900">{selectedUser.fullName || 'User'}</p>
@@ -625,13 +620,15 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
               <section>
                 <h3 className="mb-2 text-sm font-bold text-slate-900">Recent rides <span className="text-slate-400">({rides.length})</span></h3>
                 {rides.length ? <div className="space-y-2">{rides.map((ride) => (
-                  <div key={ride.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{ride.plate || ride.vehicleId || 'PUV'} · {ride.routeName || ride.operatorName || 'Route'}</p><p className="text-[10px] text-slate-500">{ride.time || ride.startedAt || 'Recorded ride'}</p></div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setRecordEdit({ type: 'ride', id: ride.id, values: { plate: ride.plate || ride.vehicleId || '', routeName: ride.routeName || ride.operatorName || '' } })} className="flex min-h-10 min-w-10 items-center justify-center text-slate-500" aria-label="Edit ride"><Pencil size={16} /></button>
-                      <button type="button" onClick={() => setRecordConfirm({ type: 'ride', id: ride.id })} className="flex min-h-10 min-w-10 items-center justify-center text-red-500" aria-label="Delete ride"><Trash2 size={16} /></button>
-                    </div>
-                  </div>
+                  <ExpandableListCard
+                    key={ride.id}
+                    summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(ride.time || ride.startedAt || ride.rideAt || 0).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{ride.plate || ride.vehicleId || 'PUV'}</p></>}
+                    details={<dl className="space-y-1 text-[10px]"><div className="flex justify-between gap-2"><dt className="text-slate-500">Route</dt><dd className="truncate text-right text-slate-900">{ride.routeName || ride.operatorName || 'Route'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Recorded</dt><dd className="text-right text-slate-900">{ride.time || ride.startedAt || 'Recorded ride'}</dd></div></dl>}
+                    actions={[
+                      { icon: Pencil, label: 'Edit ride', onClick: () => setRecordEdit({ type: 'ride', id: ride.id, values: { plate: ride.plate || ride.vehicleId || '', routeName: ride.routeName || ride.operatorName || '' } }) },
+                      { icon: Trash2, label: 'Delete ride', danger: true, onClick: () => setRecordConfirm({ type: 'ride', id: ride.id }) },
+                    ]}
+                  />
                 ))}</div> : <p className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">No rides recorded.</p>}
               </section>
             )}
@@ -640,13 +637,15 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
               <section>
                 <h3 className="mb-2 text-sm font-bold text-slate-900">Trips <span className="text-slate-400">({trips.length})</span></h3>
                 {trips.length ? <div className="space-y-2">{trips.map((trip) => (
-                  <div key={trip.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{trip.vehicleId || 'PUV'} · {trip.routeName || 'Route'}</p><p className="text-[10px] text-slate-500">{trip.startedAt || 'Recorded trip'} · {trip.duration || 'Duration unavailable'}</p></div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setRecordEdit({ type: 'trip', id: trip.id, values: { vehicleId: trip.vehicleId || '', routeName: trip.routeName || '' } })} className="flex min-h-10 min-w-10 items-center justify-center text-slate-500" aria-label="Edit trip"><Pencil size={16} /></button>
-                      <button type="button" onClick={() => setRecordConfirm({ type: 'trip', id: trip.id })} className="flex min-h-10 min-w-10 items-center justify-center text-red-500" aria-label="Delete trip"><Trash2 size={16} /></button>
-                    </div>
-                  </div>
+                  <ExpandableListCard
+                    key={trip.id}
+                    summary={<><p className="text-[10px] font-semibold text-slate-500">{new Date(trip.startedAt || 0).toLocaleDateString()}</p><p className="truncate text-xs font-bold text-slate-900">{trip.vehicleId || 'PUV'}</p></>}
+                    details={<dl className="space-y-1 text-[10px]"><div className="flex justify-between gap-2"><dt className="text-slate-500">Route</dt><dd className="truncate text-right text-slate-900">{trip.routeName || 'Route'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Started</dt><dd className="text-right text-slate-900">{trip.startedAt || 'Recorded trip'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Duration</dt><dd className="text-right text-slate-900">{trip.duration || 'Duration unavailable'}</dd></div></dl>}
+                    actions={[
+                      { icon: Pencil, label: 'Edit trip', onClick: () => setRecordEdit({ type: 'trip', id: trip.id, values: { vehicleId: trip.vehicleId || '', routeName: trip.routeName || '' } }) },
+                      { icon: Trash2, label: 'Delete trip', danger: true, onClick: () => setRecordConfirm({ type: 'trip', id: trip.id }) },
+                    ]}
+                  />
                 ))}</div> : <p className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">No trips recorded.</p>}
               </section>
             )}
@@ -655,9 +654,9 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
       )}
 
       {/* Edit modal */}
-      {editing && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/35 backdrop-blur-sm sm:items-center">
-          <div role="dialog" aria-modal="true" aria-label={`Edit ${editing.email}`} className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:mx-4 sm:max-w-lg sm:rounded-2xl sm:pb-0">
+      <AnimatedPopup open={Boolean(editing)}>
+        {editing && (
+          <div role="dialog" aria-modal="true" aria-label={`Edit ${editing.email}`} className="lo-dialog-card max-h-[90dvh] w-full max-w-lg overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:mx-4 sm:pb-0">
             <header className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
               <h3 className="text-sm font-bold text-slate-900">Edit {editing.email}</h3>
               <button type="button" onClick={() => setEditing(null)} aria-label="Close edit dialog" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500  "><X size={20} /></button>
@@ -701,34 +700,38 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
               </button>
             </footer>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
 
-      {recordConfirm && (
-        <div className="fixed inset-x-4 bottom-5 z-[2100] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
-          <p className="text-sm font-bold text-slate-900">Delete this {recordConfirm.type}?</p>
-          <p className="mt-1 text-[10px] text-slate-500">This action can only be undone by restoring the browser data.</p>
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={() => setRecordConfirm(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
-            <button type="button" onClick={deleteRecord} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete</button>
-          </div>
-        </div>
-      )}
+      <AnimatedPopup open={Boolean(recordConfirm)}>
+        {recordConfirm && (
+            <div role="dialog" aria-modal="true" aria-label="Confirm deletion" className="lo-dialog-card w-full max-w-sm p-4">
+              <p className="text-sm font-bold text-slate-900">Delete this {recordConfirm.type}?</p>
+              <p className="mt-1 text-[10px] text-slate-500">This action can only be undone by restoring the browser data.</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={() => setRecordConfirm(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
+                <button type="button" onClick={deleteRecord} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete</button>
+              </div>
+            </div>
+        )}
+      </AnimatedPopup>
 
-      {bulkConfirm && (
-        <div className="fixed inset-x-4 bottom-5 z-[2200] mx-auto max-w-sm rounded-2xl border border-red-200 bg-white p-4 shadow-2xl">
-          <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
-          <p className="mt-1 text-[10px] text-slate-500">Delete the selected items? This action cannot be undone.</p>
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={() => setBulkConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
-            <button type="button" onClick={confirmBulkDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
-          </div>
-        </div>
-      )}
+      <AnimatedPopup open={Boolean(bulkConfirm)}>
+        {bulkConfirm && (
+            <div role="dialog" aria-modal="true" aria-label="Confirm deletion" className="lo-dialog-card w-full max-w-sm p-4">
+              <p className="text-sm font-bold text-slate-900">Confirm deletion</p>
+              <p className="mt-1 text-[10px] text-slate-500">Delete the selected items? This action cannot be undone.</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={() => setBulkConfirm('')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Cancel</button>
+                <button type="button" onClick={confirmBulkDelete} className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white">Delete selected</button>
+              </div>
+            </div>
+        )}
+      </AnimatedPopup>
 
-      {recordEdit && (
-        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+      <AnimatedPopup open={Boolean(recordEdit)}>
+        {recordEdit && (
+          <div role="dialog" aria-modal="true" aria-label={`Edit ${recordEdit.type}`} className="lo-dialog-card w-full max-w-sm p-4">
             <h3 className="mb-3 text-sm font-bold text-slate-900">Edit {recordEdit.type}</h3>
             <div className="space-y-2">
               <input value={recordEdit.values.plate ?? recordEdit.values.vehicleId ?? ''} onChange={(e) => setRecordEdit((current) => ({ ...current, values: { ...current.values, plate: e.target.value, vehicleId: e.target.value } }))} placeholder="Plate number" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
@@ -739,12 +742,12 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
               <button type="button" onClick={saveRecord} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white">Save</button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
 
-      {editingAnnouncement && (
-        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+      <AnimatedPopup open={Boolean(editingAnnouncement)}>
+        {editingAnnouncement && (
+          <div role="dialog" aria-modal="true" aria-label="Edit announcement" className="lo-dialog-card w-full max-w-sm p-4">
             <h3 className="mb-3 text-sm font-bold text-slate-900">Edit announcement</h3>
             <div className="space-y-2">
               <input value={announcementDraft.title} onChange={(e) => setAnnouncementDraft((draft) => ({ ...draft, title: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
@@ -755,8 +758,8 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
               <button type="button" onClick={saveAnnouncement} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white">Save</button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatedPopup>
 
       <ConfirmToast message={toast} onClose={() => setToast('')} />
     </AppShell>

@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Hand, Inbox, MapPin, X } from 'lucide-react';
 import { subscribeDriverPokes, timeAgo } from '../services/pokeService.js';
+import { ExpandableListCard } from './KebabMenu.jsx';
 
 export default function DriverPokes({ plate, className = '', open: openProp, onOpenChange, active = true, position = null }) {
   const [state, setState] = useState({ count: 0, list: [], source: 'socket' });
   const [localOpen, setLocalOpen] = useState(false);
   const controlled = openProp !== undefined;
   const open = controlled ? openProp : localOpen;
+  const [sheetMounted, setSheetMounted] = useState(open);
+  const [sheetPhase, setSheetPhase] = useState('enter');
+  const sheetExitTimer = useRef(null);
   const setOpen = (next) => {
     const value = typeof next === 'function' ? next(open) : next;
     if (!controlled) setLocalOpen(value);
@@ -17,6 +21,24 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
   const bumpTimer = useRef(null);
   const passedPokes = useRef(new Set());
   const previousDistances = useRef(new Map());
+
+  useEffect(() => {
+    window.clearTimeout(sheetExitTimer.current);
+    if (open) {
+      setSheetMounted(true);
+      setSheetPhase('enter');
+    } else if (sheetMounted) {
+      setSheetPhase('exit');
+      sheetExitTimer.current = window.setTimeout(
+        () => setSheetMounted(false),
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 220,
+      );
+    }
+
+    return () => window.clearTimeout(sheetExitTimer.current);
+  }, [open, sheetMounted]);
+
+  useEffect(() => () => window.clearTimeout(sheetExitTimer.current), []);
 
   useEffect(() => {
     if (!plate) return undefined;
@@ -75,10 +97,10 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
 
   return (
     <div className={`relative ${className}`}>
-      {open && (
+      {sheetMounted && (
         <>
-        <button type="button" aria-label="Close pokes" onClick={() => setOpen(false)} className="fixed inset-0 z-[1600] bg-slate-900/35 sm:hidden" />
-        <section role="dialog" aria-label={`Pokes for ${plate}`} className="fixed inset-x-0 bottom-0 z-[1800] max-h-[75dvh] overflow-hidden rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:right-0 sm:z-50 sm:mb-2 sm:max-h-[24rem] sm:w-80 sm:rounded-2xl sm:pb-0">
+        <button type="button" aria-label="Close pokes" onClick={() => setOpen(false)} className={`fixed inset-0 z-[1600] bg-slate-900/35 sm:hidden ${open ? '' : 'pointer-events-none'}`} />
+        <section role="dialog" aria-modal="true" aria-label={`Pokes for ${plate}`} className={`lo-sheet-${sheetPhase} fixed inset-x-0 bottom-0 z-[1800] max-h-[75dvh] overflow-hidden rounded-t-3xl border border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:right-0 sm:z-50 sm:mb-2 sm:max-h-[24rem] sm:w-80 sm:rounded-2xl sm:pb-0`}>
           <header className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
             <p className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
               <Inbox size={13} style={{ color: 'var(--lo-primary)' }} /> Pokes for {plate}
@@ -91,25 +113,17 @@ export default function DriverPokes({ plate, className = '', open: openProp, onO
           {visiblePokes.length === 0 ? (
             <p className="px-3 py-5 text-center text-[11px] text-slate-500">No pokes yet.</p>
           ) : (
-            <ul className="max-h-[55dvh] divide-y divide-[var(--lo-panel-border)] overflow-y-auto sm:max-h-72">
+            <div className="max-h-[55dvh] overflow-y-auto sm:max-h-72">
               {visiblePokes.map((poke) => (
-                <li key={poke.id} className="flex items-start gap-2 px-3 py-2.5">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--lo-success)', color: 'var(--lo-text)' }}>
-                    <Hand size={12} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-bold text-slate-900">{poke.fromName || 'A commuter'}</p>
-                    <p className="text-[11px] text-slate-900">{poke.message || 'Poke! 👋'}</p>
-                    <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-                      {timeAgo(poke.createdAt)}
-                      {Number.isFinite(Number(poke.lat)) && Number.isFinite(Number(poke.lng)) && (
-                        <><MapPin size={9} /> {Number(poke.lat).toFixed(4)}</>
-                      )}
-                    </p>
-                  </div>
-                </li>
+                <ExpandableListCard
+                  key={poke.id}
+                  leading={<span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-slate-900"><Hand size={12} /></span>}
+                  summary={<><p className="text-[10px] font-semibold text-slate-500">{timeAgo(poke.createdAt)}</p><p className="truncate text-xs font-bold text-slate-900">{poke.fromName || 'A commuter'}</p></>}
+                  details={<><p className="text-[11px] leading-relaxed text-slate-700">{poke.message || 'Poke! 👋'}</p>{Number.isFinite(Number(poke.lat)) && Number.isFinite(Number(poke.lng)) && <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-500"><MapPin size={10} /> {Number(poke.lat).toFixed(4)}, {Number(poke.lng).toFixed(4)}</p>}</>}
+                  className="my-1.5 mx-2"
+                />
               ))}
-            </ul>
+            </div>
           )}
           <p className="border-t border-slate-200 px-3 py-1.5 text-[9px] uppercase tracking-widest text-slate-500">
             {state.source === 'firestore' ? 'Firestore' : 'Realtime server'}
