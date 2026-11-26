@@ -48,7 +48,8 @@ const MAX_POKES_KEPT = 50;
  * CORS_ORIGIN env var, e.g.
  *   CORS_ORIGIN=https://look-out.pages.dev,http://localhost:5173
  */
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : '*'))
+const DEFAULT_PRODUCTION_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173';
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? DEFAULT_PRODUCTION_ORIGINS : '*'))
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);

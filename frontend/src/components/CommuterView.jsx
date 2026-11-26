@@ -143,7 +143,7 @@ const meIcon = L.divIcon({
   className: 'lo-me-wrapper',
   html: `<div class="lo-me"><span class="lo-me__pin">${renderToStaticMarkup(<MapPin size={24} strokeWidth={2.5} />)}</span><span class="lo-me__label">You are here</span></div>`,
   iconSize: [24, 24],
-  iconAnchor: [12, 12],
+  iconAnchor: [12, 24],
 });
 
 const pokeIcon = (sent) =>
@@ -239,6 +239,7 @@ export default function CommuterView({
   useEffect(() => { setAnnouncements(getAllAnnouncements()); }, []);
 
   const mapRef = useRef(null);
+  const hasCenteredOnUserLocation = useRef(false);
   const routeById = useMemo(() => Object.fromEntries(routes.map((r) => [r.id, r])), [routes]);
   const visibleVehicles = useMemo(
     () => vehicles.filter((v) => Date.now() - (v.updatedAt ?? 0) < FRESH_WINDOW_MS && (routeFilter === 'all' || v.routeId === routeFilter)),
@@ -341,6 +342,12 @@ export default function CommuterView({
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
+
+  useEffect(() => {
+    if (!myLocation || !mapRef.current || hasCenteredOnUserLocation.current) return;
+    mapRef.current.flyTo([myLocation.lat, myLocation.lng], 16, { duration: 0.8 });
+    hasCenteredOnUserLocation.current = true;
+  }, [myLocation]);
 
   useEffect(() => {
     if (!myLocation) return undefined;

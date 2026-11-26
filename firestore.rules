@@ -11,8 +11,10 @@ rules_version = '2';
  * ROLES
  *   commuter  may read/write only their own profile, may poke any jeepney
  *   driver    same, plus their own plate numbers (stored in their profile)
- *   admin     may read/write/delete EVERY profile, list every poke and use both
- *             the commuter and the driver view in the app.
+ *   admin     may read/write/delete EVERY profile and analytics record, list
+ *             every poke and use both the commuter and driver views.
+ *   commuters/drivers may write their own ride/trip analytics records; admins
+ *             can read and manage the fleet-wide analytics collection.
  *
  *   The admin role cannot be self-granted: `role` is immutable on ordinary
  *   self-updates, and the only escape hatch is the owner of an email listed in
@@ -81,6 +83,25 @@ service cloud.firestore {
       allow read:   if signedIn();
       allow create, update: if signedIn() && request.resource.data.count is int;
       allow delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------- analytics data
+    match /analyticsRecords/{recordId} {
+      function validOwnerWrite(data) {
+        return signedIn()
+               && data.ownerUid == request.auth.uid
+               && ((data.recordType == 'trip' && profile(request.auth.uid).role == 'driver')
+                   || (data.recordType == 'ride' && profile(request.auth.uid).role == 'commuter'));
+      }
+
+      allow read: if isAdmin()
+                  || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isAdmin() || validOwnerWrite(request.resource.data);
+      allow update: if isAdmin()
+                    || (validOwnerWrite(request.resource.data)
+                        && request.resource.data.ownerUid == resource.data.ownerUid
+                        && request.resource.data.recordType == resource.data.recordType);
+      allow delete: if isAdmin() || validOwnerWrite(resource.data);
     }
   }
 }
