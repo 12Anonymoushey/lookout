@@ -15,6 +15,7 @@
   --color-green: #14B383;
   --shadow-green-card: 7px 15px 1px 3px #14B383;
   --shadow-green-card-north-east: 4px -3px 1px 2px #14B383;
+  --shadow-green-button: 0 3px 8px rgba(16, 185, 129, 0.28);
 }
 
 :root {
@@ -219,8 +220,14 @@ select option {
   box-shadow: none !important;
 }
 
-#root button {
-  box-shadow: inset 0 0 0 0 var(--color-blue-600);
+button:not(.inset-0) {
+  border-radius: 0.9rem;
+  box-shadow: var(--shadow-green-button);
+}
+
+.lo-glass-sidebar button:not(.inset-0),
+.lo-mobile-drawer button:not(.inset-0) {
+  box-shadow: none;
 }
 
 #root button:active:not(:disabled) {
@@ -230,16 +237,18 @@ select option {
 #root button:focus-visible {
   outline: 2px solid var(--color-blue-600);
   outline-offset: 3px;
-  color: white;
-  box-shadow: inset 0 -100px 0 0 var(--color-blue-600);
 }
 
-#root button:focus-visible:not(:disabled) :where(span, svg) {
-  color: white;
+button.bg-red-500 {
+  color: var(--color-slate-900);
+}
+
+button.bg-blue-600:hover:not(:disabled) {
+  background-color: var(--color-blue-700);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #root button {
+  button {
     transition: none;
   }
 }
@@ -626,6 +635,12 @@ a.leaflet-popup-close-button {
 .auth-page-scroll {
   scroll-behavior: smooth;
   scroll-padding-top: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.auth-page-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .auth-card-enter {

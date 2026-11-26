@@ -26,6 +26,13 @@ import {
   X,
 } from 'lucide-react';
 import { socket } from '../services/socket.js';
+import { firebaseReady } from '../services/firebase.js';
+import {
+  deleteAnalyticsRecord,
+  mergeOwnedAnalyticsRecords,
+  saveAnalyticsRecord,
+  watchOwnAnalyticsRecords,
+} from '../services/analyticsService.js';
 import { bearingDeg, cardinal, haversineKm, pathLengthKm, pointAtDistance } from '../utils/geo.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import AppShell, { AnimatedPopup, InfoRow, ProfileScreen, Section } from './AppShell.jsx';
@@ -205,6 +212,22 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   const [selectedAnnouncements, setSelectedAnnouncements] = useState([]);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState('');
 
+  useEffect(() => {
+    if (!firebaseReady || !profile?.uid) return undefined;
+    return watchOwnAnalyticsRecords(
+      profile.uid,
+      (records) => {
+        const cloudTrips = records.filter((record) => record.recordType === 'trip');
+        setTrips((current) => {
+          const next = mergeOwnedAnalyticsRecords(current, cloudTrips, profile.uid);
+          localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+          return next;
+        });
+      },
+      (syncError) => setError(`Could not load cloud trip analytics: ${syncError.message}`),
+    );
+  }, [profile?.uid]);
+
   // Announcements
   const [myAnnouncements, setMyAnnouncements] = useState([]);
   const [allAnnouncements, setAllAnnouncements] = useState([]);
@@ -360,10 +383,17 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
   }, [emitFix, pushFix]);
 
   const saveTrip = useCallback((tripData) => {
-    const next = [tripData, ...trips].slice(0, 100);
+    const trip = profile?.uid
+      ? { ...tripData, ownerUid: profile.uid, recordType: 'trip', recordId: String(tripData.id) }
+      : tripData;
+    const next = [trip, ...trips].slice(0, 100);
     setTrips(next);
     localStorage.setItem('lo_driver_trips', JSON.stringify(next));
-  }, [trips]);
+    if (firebaseReady && profile?.uid) {
+      saveAnalyticsRecord(profile.uid, 'trip', trip)
+        .catch((syncError) => setError(`Trip saved locally, but cloud sync failed: ${syncError.message}`));
+    }
+  }, [profile?.uid, trips]);
 
   const beginTrip = () => {
     const vid = activePlate.trim().toUpperCase();
@@ -551,26 +581,45 @@ export default function DriverView({ routes, connected, drawerOpen, onOpenDrawer
 
   const updateTripFinancials = () => {
     if (!editingTrip) return;
-    const next = trips.map((t) => t.id === editingTrip.id ? { ...t, revenue: Number(tripDraft.revenue) || 0, income: Number(tripDraft.income) || 0, gas: Number(tripDraft.gas) || 0, others: Number(tripDraft.others) || 0 } : t);
+    const next = trips.map((t) => t.id === editingTrip.id
+      ? { ...t, ownerUid: profile?.uid || t.ownerUid, recordType: 'trip', recordId: String(t.recordId ?? t.id), revenue: Number(tripDraft.revenue) || 0, income: Number(tripDraft.income) || 0, gas: Number(tripDraft.gas) || 0, others: Number(tripDraft.others) || 0 }
+      : t);
+    const updatedTrip = next.find((trip) => trip.id === editingTrip.id);
     setTrips(next);
     localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+    if (firebaseReady && updatedTrip?.ownerUid) {
+      saveAnalyticsRecord(updatedTrip.ownerUid, 'trip', updatedTrip)
+        .catch((syncError) => setError(`Trip updated locally, but cloud sync failed: ${syncError.message}`));
+    }
     setToast('Trip finances updated');
     setEditingTrip(null);
   };
 
   const removeTrip = (id) => {
+    const removedTrip = trips.find((trip) => trip.id === id);
     const next = trips.filter((t) => t.id !== id);
     setTrips(next);
     localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+    if (firebaseReady && removedTrip?.ownerUid) {
+      deleteAnalyticsRecord(removedTrip)
+        .catch((syncError) => setError(`Trip removed locally, but cloud deletion failed: ${syncError.message}`));
+    }
     setDeleteTripId(null);
     setToast('Trip removed');
   };
 
   const confirmBulkDelete = () => {
     if (bulkDeleteConfirm === 'trips') {
+      const removedTrips = trips.filter((trip) => selectedTrips.includes(trip.id));
       const next = trips.filter((trip) => !selectedTrips.includes(trip.id));
       setTrips(next);
       localStorage.setItem('lo_driver_trips', JSON.stringify(next));
+      if (firebaseReady) {
+        removedTrips.filter((trip) => trip.ownerUid).forEach((trip) => {
+          deleteAnalyticsRecord(trip)
+            .catch((syncError) => setError(`Trips removed locally, but cloud deletion failed: ${syncError.message}`));
+        });
+      }
       setToast(`${selectedTrips.length} trips removed`);
       setSelectedTrips([]);
     } else {

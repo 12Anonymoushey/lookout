@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { CloudRain, RefreshCw } from 'lucide-react';
 
+const DEFAULT_LOCATION = { latitude: 10.7202, longitude: 122.5621 };
+
+function getCoordinates(latitude, longitude) {
+  if (latitude == null || longitude == null || latitude === '' || longitude === '') return null;
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { latitude: lat, longitude: lng };
+}
+
 export default function WeatherTab({ latitude, longitude }) {
   const [data, setData] = useState({ loading: true, precipitation: null, temperature: null, humidity: null });
-  const [position, setPosition] = useState(
-    Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
-      ? { latitude: Number(latitude), longitude: Number(longitude) }
-      : null,
-  );
+  const [position, setPosition] = useState(() => getCoordinates(latitude, longitude));
 
   useEffect(() => {
     if (position || !('geolocation' in navigator)) return undefined;
@@ -20,20 +26,15 @@ export default function WeatherTab({ latitude, longitude }) {
   }, [position]);
 
   useEffect(() => {
-    const lat = position?.latitude ?? latitude;
-    const lng = position?.longitude ?? longitude;
-    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
-      setData((current) => ({ ...current, loading: false }));
-      return undefined;
-    }
+    const location = position || getCoordinates(latitude, longitude) || DEFAULT_LOCATION;
 
     let cancelled = false;
     const load = async () => {
       setData((current) => ({ ...current, loading: true }));
       try {
         const url = new URL('https://api.open-meteo.com/v1/forecast');
-        url.searchParams.set('latitude', lat);
-        url.searchParams.set('longitude', lng);
+        url.searchParams.set('latitude', location.latitude);
+        url.searchParams.set('longitude', location.longitude);
         url.searchParams.set('current', 'precipitation,temperature_2m,relative_humidity_2m');
         url.searchParams.set('timezone', 'auto');
         const response = await fetch(url);

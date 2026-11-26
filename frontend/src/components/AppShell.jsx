@@ -65,7 +65,7 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
             onCloseDrawer?.();
           }}
           aria-current={selectedScreenId === id ? 'page' : undefined}
-          className={`sidebar-nav__item lo-sidebar-tab group flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-[#E9F3F8]/15 hover:text-[#F5F8FC] ${selectedScreenId === id ? 'bg-[#236BEB] text-[#F5F8FC]' : 'text-[#F5F8FC]'}`}
+          className={`sidebar-nav__item lo-sidebar-tab group flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-[#E9F3F8]/15 hover:text-[#F5F8FC] ${selectedScreenId === id ? 'bg-blue-600 text-white' : 'text-[#F5F8FC]'}`}
         >
           {Icon && <Icon size={19} className="sidebar-nav__icon shrink-0 " aria-hidden="true" />}
           <span className="truncate">{title}</span>
@@ -306,7 +306,7 @@ export default function AppShell({ panel, children, dockItems = [], extraNavigat
         <div role="dialog" aria-modal="true" className={utilityModal === 'about' ? 'absolute inset-0 overflow-y-auto bg-white' : 'lo-dialog-card max-h-[80vh] w-full max-w-md overflow-y-auto p-5'}>
             <div className="mb-4 flex items-start justify-between gap-3">
               <h2 className="text-lg font-extrabold text-slate-900">{utilityModal === 'about' ? 'About LookOut!' : utilityModal === 'ask' ? 'Ask an admin' : 'Send feedback'}</h2>
-              {utilityModal !== 'about' && <button type="button" onClick={() => setUtilityModal('')} className="min-h-10 min-w-10 text-slate-500" aria-label="Close"><X size={18} /></button>}
+              {utilityModal !== 'about' && <button type="button" onClick={() => setUtilityModal('')} className="flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl p-0 text-slate-500" aria-label="Close"><X size={18} /></button>}
             </div>
             {utilityModal === 'about' ? (
               <div className="relative min-h-full overflow-hidden">

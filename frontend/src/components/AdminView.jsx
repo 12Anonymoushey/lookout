@@ -21,6 +21,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { adminDeletePoke, adminDeleteUser, adminUpdateUser, watchAllPokes, watchAllUsers } from '../services/adminService.js';
 import { firebaseReady, normalizePhone, normalizePlate } from '../services/authService.js';
 import { auth } from '../services/firebase.js';
+import {
+  deleteAnalyticsRecord,
+  mergeLocalAndCloudAnalytics,
+  saveAnalyticsRecord,
+  watchAllAnalyticsRecords,
+} from '../services/analyticsService.js';
 import { timeAgo } from '../services/pokeService.js';
 import { ExpandableListCard, SearchSortBar, ConfirmToast } from './KebabMenu.jsx';
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement, getAllAnnouncements } from '../services/announcementService.js';
@@ -181,6 +187,26 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
   }, []);
 
   useEffect(() => {
+    if (!firebaseReady) return undefined;
+    return watchAllAnalyticsRecords(
+      (records) => {
+        const readStored = (key) => {
+          try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+        };
+        setRides(mergeLocalAndCloudAnalytics(
+          readStored('lo_recent_rides'),
+          records.filter((record) => record.recordType === 'ride'),
+        ));
+        setTrips(mergeLocalAndCloudAnalytics(
+          readStored('lo_driver_trips'),
+          records.filter((record) => record.recordType === 'trip'),
+        ));
+      },
+      (syncError) => setToast(`Could not load cloud analytics: ${syncError.message}`),
+    );
+  }, []);
+
+  useEffect(() => {
     if (!toast) return undefined;
     const id = setTimeout(() => setToast(''), 3000);
     return () => clearTimeout(id);
@@ -285,10 +311,20 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
   };
 
   const persistRides = (next) => {
+    const retainedDocs = new Set(next.map((ride) => ride.firestoreId).filter(Boolean));
+    rides.filter((ride) => ride.firestoreId && !retainedDocs.has(ride.firestoreId)).forEach((ride) => {
+      deleteAnalyticsRecord(ride)
+        .catch((syncError) => setToast(`Ride removed locally, but cloud deletion failed: ${syncError.message}`));
+    });
     setRides(next);
     localStorage.setItem('lo_recent_rides', JSON.stringify(next));
   };
   const persistTrips = (next) => {
+    const retainedDocs = new Set(next.map((trip) => trip.firestoreId).filter(Boolean));
+    trips.filter((trip) => trip.firestoreId && !retainedDocs.has(trip.firestoreId)).forEach((trip) => {
+      deleteAnalyticsRecord(trip)
+        .catch((syncError) => setToast(`Trip removed locally, but cloud deletion failed: ${syncError.message}`));
+    });
     setTrips(next);
     localStorage.setItem('lo_driver_trips', JSON.stringify(next));
   };
@@ -302,9 +338,21 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
   const saveRecord = () => {
     if (!recordEdit) return;
     if (recordEdit.type === 'ride') {
-      persistRides(rides.map((ride) => ride.id === recordEdit.id ? { ...ride, ...recordEdit.values } : ride));
+      const next = rides.map((ride) => ride.id === recordEdit.id ? { ...ride, ...recordEdit.values } : ride);
+      const updatedRide = next.find((ride) => ride.id === recordEdit.id);
+      persistRides(next);
+      if (firebaseReady && updatedRide?.ownerUid) {
+        saveAnalyticsRecord(updatedRide.ownerUid, 'ride', updatedRide)
+          .catch((syncError) => setToast(`Ride updated locally, but cloud sync failed: ${syncError.message}`));
+      }
     } else {
-      persistTrips(trips.map((trip) => trip.id === recordEdit.id ? { ...trip, ...recordEdit.values } : trip));
+      const next = trips.map((trip) => trip.id === recordEdit.id ? { ...trip, ...recordEdit.values } : trip);
+      const updatedTrip = next.find((trip) => trip.id === recordEdit.id);
+      persistTrips(next);
+      if (firebaseReady && updatedTrip?.ownerUid) {
+        saveAnalyticsRecord(updatedTrip.ownerUid, 'trip', updatedTrip)
+          .catch((syncError) => setToast(`Trip updated locally, but cloud sync failed: ${syncError.message}`));
+      }
     }
     setToast(`${recordEdit.type === 'ride' ? 'Ride' : 'Trip'} updated`);
     setRecordEdit(null);
@@ -689,7 +737,7 @@ export default function AdminView({ vehicles = [], onViewChange, onOpenDrawer, o
                   <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">New account password</span>
                   <input type="password" minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none" />
                 </label>
-                <button type="button" onClick={updateUserPassword} disabled={saving || newPassword.length < 6} className="mt-2 min-h-10 w-full rounded-xl bg-slate-900 px-3 text-xs font-bold text-white disabled:opacity-40">Update password</button>
+                <button type="button" onClick={updateUserPassword} disabled={saving || newPassword.length < 6} className="mt-2 min-h-10 w-full rounded-xl bg-blue-600 px-3 text-xs font-bold text-white disabled:opacity-40">Update password</button>
               </div>
             </div>
             <footer className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">

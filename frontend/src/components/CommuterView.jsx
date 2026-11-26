@@ -26,6 +26,13 @@ import WeatherTab from './WeatherTab.jsx';
 import { ExpandableListCard, SearchSortBar } from './KebabMenu.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { sendPoke } from '../services/pokeService.js';
+import { firebaseReady } from '../services/firebase.js';
+import {
+  deleteAnalyticsRecord,
+  mergeOwnedAnalyticsRecords,
+  saveAnalyticsRecord,
+  watchOwnAnalyticsRecords,
+} from '../services/analyticsService.js';
 import { getAllAnnouncements } from '../services/announcementService.js';
 import { statusMeta } from '../utils/vehicle.js';
 import {
@@ -204,6 +211,21 @@ export default function CommuterView({
   const [recentRides, setRecentRides] = useState(() => {
     try { return JSON.parse(localStorage.getItem('lo_recent_rides') || '[]'); } catch { return []; }
   });
+  useEffect(() => {
+    if (!firebaseReady || !profile?.uid) return undefined;
+    return watchOwnAnalyticsRecords(
+      profile.uid,
+      (records) => {
+        const cloudRides = records.filter((record) => record.recordType === 'ride');
+        setRecentRides((current) => {
+          const next = mergeOwnedAnalyticsRecords(current, cloudRides, profile.uid);
+          localStorage.setItem('lo_recent_rides', JSON.stringify(next));
+          return next;
+        });
+      },
+      (syncError) => setToast(`Could not load cloud ride analytics: ${syncError.message}`),
+    );
+  }, [profile?.uid]);
   const [recentSearch, setRecentSearch] = useState('');
   const [recentSort, setRecentSort] = useState({ field: 'plate', dir: 'asc' });
   const [activeRide, setActiveRide] = useState(() => {
@@ -249,6 +271,7 @@ export default function CommuterView({
           const ride = {
             ...vehicleToRow(nearest.vehicle, routeById, now()),
             plate: plate,
+            ownerUid: profile?.uid,
             startedAt: Date.now(),
             status: 'riding',
             rideAt: Date.now(),
@@ -277,9 +300,13 @@ export default function CommuterView({
       rideExitCandidateRef.current = Date.now();
     } else if (Date.now() - rideExitCandidateRef.current >= (!activeVehicle ? RIDE_DISAPPEAR_CONFIRM_MS : RIDE_EXIT_CONFIRM_MS)) {
       const endedAt = Date.now();
+      const rideId = Date.now().toString() + Math.random().toString(36).slice(2, 6);
       const ride = {
         ...activeRide,
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+        id: rideId,
+        ownerUid: profile?.uid || activeRide.ownerUid,
+        recordType: 'ride',
+        recordId: rideId,
         endedAt,
         rideAt: activeRide.startedAt || Date.now(),
         durationMinutes: Math.max(0, (endedAt - activeRide.startedAt) / 60000),
@@ -291,11 +318,15 @@ export default function CommuterView({
         localStorage.setItem('lo_recent_rides', JSON.stringify(next));
         return next;
       });
+      if (firebaseReady && ride.ownerUid) {
+        saveAnalyticsRecord(ride.ownerUid, 'ride', ride)
+          .catch((syncError) => setToast(`Ride saved locally, but cloud sync failed: ${syncError.message}`));
+      }
       localStorage.removeItem('lo_active_ride');
       setActiveRide(null);
       rideExitCandidateRef.current = null;
     }
-  }, [myLocation, visibleVehicles, vehicles, activeRide, routeById, tick]);
+  }, [myLocation, visibleVehicles, vehicles, activeRide, routeById, tick, profile?.uid]);
 
   useEffect(() => {
     if (!('geolocation' in navigator)) { setLocState('unsupported'); return undefined; }
@@ -442,16 +473,26 @@ export default function CommuterView({
   /* ---- Recent Rides: add via Ride button ---- */
   const addRecentRide = (vehicle) => {
     const rideAt = Date.now();
-    const row = { ...vehicleToRow(vehicle, routeById, now()), time: now(), rideAt };
+    const id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+    const row = { ...vehicleToRow(vehicle, routeById, now()), id, ownerUid: profile?.uid, recordType: 'ride', recordId: id, time: now(), rideAt };
     const next = [row, ...recentRides].slice(0, 50);
     setRecentRides(next);
     localStorage.setItem('lo_recent_rides', JSON.stringify(next));
+    if (firebaseReady && profile?.uid) {
+      saveAnalyticsRecord(profile.uid, 'ride', row)
+        .catch((syncError) => setToast(`Ride saved locally, but cloud sync failed: ${syncError.message}`));
+    }
     setToast(`Ride with ${vehicle.vehicleId} added`);
   };
   const removeRecent = (id, plate) => {
+    const removedRide = recentRides.find((ride) => ride.id === id);
     const next = recentRides.filter((r) => r.id !== id);
     setRecentRides(next);
     localStorage.setItem('lo_recent_rides', JSON.stringify(next));
+    if (firebaseReady && removedRide?.ownerUid) {
+      deleteAnalyticsRecord(removedRide)
+        .catch((syncError) => setToast(`Ride removed locally, but cloud deletion failed: ${syncError.message}`));
+    }
     setToast(`${plate || 'Ride'} removed from recent rides`);
   };
 
@@ -463,9 +504,16 @@ export default function CommuterView({
       setToast(`${selectedSaved.length} saved rides removed`);
       setSelectedSaved([]);
     } else {
+      const removedRides = recentRides.filter((item) => selectedRecent.includes(item.id));
       const next = recentRides.filter((item) => !selectedRecent.includes(item.id));
       setRecentRides(next);
       localStorage.setItem('lo_recent_rides', JSON.stringify(next));
+      if (firebaseReady) {
+        removedRides.filter((ride) => ride.ownerUid).forEach((ride) => {
+          deleteAnalyticsRecord(ride)
+            .catch((syncError) => setToast(`Rides removed locally, but cloud deletion failed: ${syncError.message}`));
+        });
+      }
       setToast(`${selectedRecent.length} recent rides removed`);
       setSelectedRecent([]);
     }
@@ -775,7 +823,7 @@ export default function CommuterView({
                 </p>
                 <p className="mt-0.5 truncate text-[11px]" style={{ color: 'var(--lo-text-secondary)' }}>{focusRoute?.name}</p>
               </div>
-              <button type="button" onClick={() => setSelectedStop(null)} className="rounded-lg p-1  " style={{ color: 'var(--lo-text-secondary)' }}>
+              <button type="button" onClick={() => setSelectedStop(null)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-0" style={{ color: 'var(--lo-text-secondary)' }}>
                 <X size={15} />
               </button>
             </div>
